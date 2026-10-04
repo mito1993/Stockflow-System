@@ -1,0 +1,6 @@
+{
+  "name": "飲食店向け在庫管理システム MVP v3.0",
+  "description": "要件定義書v4.0に基づく飲食店向け在庫管理システム。複数店舗・権限制御、OCR仕入伝票登録、独立した棚卸・OCRマッチング機能、月次実地棚卸入力、最終仕入原価法による原価計算・仕入集計、月次推移表を備えたプロトタイプ。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
