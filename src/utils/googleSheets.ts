@@ -24,7 +24,7 @@ export const fetchSheetData = async <T>(
       return []; // データ行(3行目以降)がない場合は空配列
     }
 
-    const headers: string[] = data.values[0];  // 1行目: 英語キー
+    const headers: string[] = data.values[0];   // 1行目: 英語キー
     const dataRows: any[][] = data.values.slice(2); // 3行目以降: 実データ
 
     return dataRows.map((row) => {
