@@ -1,5 +1,6 @@
 import React from 'react';
 import { TInvoiceLine, MItem, TabType } from '../types';
+import { formatCurrency } from '../utils/formatters';
 
 interface OcrViewProps {
   currentStoreInvoiceLines: TInvoiceLine[];
@@ -10,7 +11,7 @@ interface OcrViewProps {
   selectedStoreId: string;
   showToast: (message: string, type?: any) => void;
   setActiveTab: (tab: TabType) => void;
-  saveSheetToGoogle?: (sheetName: any, headers: string[], records: any[]) => void;
+  saveSheetToGoogle?: (sheetName: any, headers?: string[], records?: any[]) => void;
 }
 
 export const OcrView: React.FC<OcrViewProps> = ({
@@ -24,10 +25,6 @@ export const OcrView: React.FC<OcrViewProps> = ({
   setActiveTab,
   saveSheetToGoogle,
 }) => {
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(val || 0);
-  };
-
   const simulateOcrUpload = () => {
     showToast('AI/OCR解析を実行しています...', 'info');
     setTimeout(() => {
@@ -58,12 +55,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
       setT_Invoice_Line(prev => {
         const updated = [newLine, ...prev];
         if (saveSheetToGoogle) {
-          saveSheetToGoogle('T_Invoice_Line', [
-            'line_id', 'invoice_id', 'file_url', 'item_id', 'item_name', 'inventory_target',
-            'supplier_id', 'supplier_name', 'quantity', 'unit_price', 'total_price',
-            'is_manual_edited', 'unit', 'converted_item_name', 'converted_supplier_name',
-            'is_new_item', 'is_new_supplier'
-          ], updated);
+          saveSheetToGoogle('T_Invoice_Line', undefined, updated);
         }
         return updated;
       });
@@ -90,12 +82,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
         return l;
       });
       if (saveSheetToGoogle) {
-        saveSheetToGoogle('T_Invoice_Line', [
-          'line_id', 'invoice_id', 'file_url', 'item_id', 'item_name', 'inventory_target',
-          'supplier_id', 'supplier_name', 'quantity', 'unit_price', 'total_price',
-          'is_manual_edited', 'unit', 'converted_item_name', 'converted_supplier_name',
-          'is_new_item', 'is_new_supplier'
-        ], updated);
+        saveSheetToGoogle('T_Invoice_Line', undefined, updated);
       }
       return updated;
     });
@@ -107,12 +94,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
     setT_Invoice_Line(prev => {
       const updated = prev.map(l => l.line_id === line.line_id ? { ...l, status: '確定' } : l);
       if (saveSheetToGoogle) {
-        saveSheetToGoogle('T_Invoice_Line', [
-          'line_id', 'invoice_id', 'file_url', 'item_id', 'item_name', 'inventory_target',
-          'supplier_id', 'supplier_name', 'quantity', 'unit_price', 'total_price',
-          'is_manual_edited', 'unit', 'converted_item_name', 'converted_supplier_name',
-          'is_new_item', 'is_new_supplier'
-        ], updated);
+        saveSheetToGoogle('T_Invoice_Line', undefined, updated);
       }
       return updated;
     });
@@ -123,12 +105,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
     setT_Invoice_Line(prev => {
       const updated = prev.map(l => l.status !== '確定' ? { ...l, status: '確定' } : l);
       if (saveSheetToGoogle) {
-        saveSheetToGoogle('T_Invoice_Line', [
-          'line_id', 'invoice_id', 'file_url', 'item_id', 'item_name', 'inventory_target',
-          'supplier_id', 'supplier_name', 'quantity', 'unit_price', 'total_price',
-          'is_manual_edited', 'unit', 'converted_item_name', 'converted_supplier_name',
-          'is_new_item', 'is_new_supplier'
-        ], updated);
+        saveSheetToGoogle('T_Invoice_Line', undefined, updated);
       }
       return updated;
     });

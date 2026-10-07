@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MItem, MSupplier, TCostCalculation, TInventoryCount } from '../types';
+import { formatCurrency, getNowDateTimeString } from '../utils/formatters';
 
 interface InventoryViewProps {
   currentStoreCostCalculations: TCostCalculation[];
@@ -14,7 +15,7 @@ interface InventoryViewProps {
   setM_Item: React.Dispatch<React.SetStateAction<MItem[]>>;
   showToast: (message: string, type?: any) => void;
   setActiveTab: (tab: any) => void;
-  saveSheetToGoogle?: (sheetName: any, headers: string[], records: any[]) => void;
+  saveSheetToGoogle?: (sheetName: any, headers?: string[], records?: any[]) => void;
 }
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
@@ -42,10 +43,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     unit: 'kg',
     actual_quantity: '',
   });
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(val || 0);
-  };
 
   const categories = Array.from(new Set(storeInventoryItems.map(i => i.category)));
 
@@ -76,7 +73,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const saveInventoryCounts = () => {
     let failSafeCount = 0;
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const nowStr = getNowDateTimeString();
 
     setT_Inventory_Count(prev => {
       const updated = [...prev];
@@ -118,10 +115,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       });
 
       if (saveSheetToGoogle) {
-        saveSheetToGoogle('T_Inventory_Count', [
-          'count_id', 'store_id', 'target_month', 'item_id', 'actual_quantity',
-          'item_name', 'input_datetime', 'input_user_id', 'is_new_count_flag'
-        ], updated);
+        saveSheetToGoogle('T_Inventory_Count', undefined, updated);
       }
 
       return updated;
@@ -143,7 +137,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const newId = Date.now();
     const qty = Number(newCountForm.actual_quantity || 0);
     const targetStore = selectedStoreId === 'HQ' ? 'S001' : selectedStoreId;
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const nowStr = getNowDateTimeString();
 
     const newItem: MItem = {
       item_id: newId,
@@ -169,13 +163,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     setM_Item(prev => {
       const updated = [...prev, newItem];
-      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', ['item_id', 'supplier_id', 'item_name', 'inventory_target', 'category', 'unit', 'store_id'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', undefined, updated);
       return updated;
     });
 
     setT_Inventory_Count(prev => {
       const updated = [...prev, newCount];
-      if (saveSheetToGoogle) saveSheetToGoogle('T_Inventory_Count', ['count_id', 'store_id', 'target_month', 'item_id', 'actual_quantity', 'item_name', 'input_datetime', 'input_user_id', 'is_new_count_flag'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('T_Inventory_Count', undefined, updated);
       return updated;
     });
 

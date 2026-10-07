@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TInventoryCount, TInvoiceLine, MItem, MSupplier, MatchingHistoryItem } from '../types';
+import { formatCurrency, getNowShortDateTimeString } from '../utils/formatters';
 
 interface MatchingViewProps {
   unlinkedCountItems: TInventoryCount[];
@@ -11,7 +12,7 @@ interface MatchingViewProps {
   setT_Inventory_Count: React.Dispatch<React.SetStateAction<TInventoryCount[]>>;
   setM_Item: React.Dispatch<React.SetStateAction<MItem[]>>;
   showToast: (message: string, type?: any) => void;
-  saveSheetToGoogle?: (sheetName: any, headers: string[], records: any[]) => void;
+  saveSheetToGoogle?: (sheetName: any, headers?: string[], records?: any[]) => void;
 }
 
 export const MatchingView: React.FC<MatchingViewProps> = ({
@@ -57,12 +58,6 @@ export const MatchingView: React.FC<MatchingViewProps> = ({
     }
   ]);
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(val || 0);
-  };
-
-  const getSupplierName = (id: number) => M_Supplier.find(s => s.supplier_id === id)?.supplier_name || '不明';
-
   const canExecuteMatch = () => {
     if (matchingSourceType === 'inventory') {
       if (!selectedMatchingCount) return false;
@@ -78,7 +73,7 @@ export const MatchingView: React.FC<MatchingViewProps> = ({
   };
 
   const executeMatching = () => {
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const nowStr = getNowShortDateTimeString();
 
     if (matchingSourceType === 'inventory' && selectedMatchingCount) {
       const cnt = selectedMatchingCount;
@@ -90,14 +85,14 @@ export const MatchingView: React.FC<MatchingViewProps> = ({
         // T_Inventory_Count 新規フラグ解除
         setT_Inventory_Count(prev => {
           const updated = prev.map(c => c.count_id === cnt.count_id ? { ...c, is_new_count_flag: false, item_id: unifiedItemId } : c);
-          if (saveSheetToGoogle) saveSheetToGoogle('T_Inventory_Count', ['count_id', 'store_id', 'target_month', 'item_id', 'actual_quantity', 'item_name', 'input_datetime', 'input_user_id', 'is_new_count_flag'], updated);
+          if (saveSheetToGoogle) saveSheetToGoogle('T_Inventory_Count', undefined, updated);
           return updated;
         });
 
         // T_Invoice_Line 紐付け更新
         setT_Invoice_Line(prev => {
           const updated = prev.map(l => l.line_id === line.line_id ? { ...l, item_id: unifiedItemId, converted_item_name: cnt.item_name, is_new_item: false } : l);
-          if (saveSheetToGoogle) saveSheetToGoogle('T_Invoice_Line', ['line_id', 'invoice_id', 'file_url', 'item_id', 'item_name', 'inventory_target', 'supplier_id', 'supplier_name', 'quantity', 'unit_price', 'total_price', 'is_manual_edited', 'unit', 'converted_item_name', 'converted_supplier_name', 'is_new_item', 'is_new_supplier'], updated);
+          if (saveSheetToGoogle) saveSheetToGoogle('T_Invoice_Line', undefined, updated);
           return updated;
         });
 

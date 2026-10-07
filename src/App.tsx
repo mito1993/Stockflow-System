@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
-import { DatabaseState, TabType, ToastMessage, MUser, MStore, TCostCalculation } from './types';
+import { DatabaseState, TabType, ToastMessage, MUser, MStore, TCostCalculation, DataMode } from './types';
 import { fetchAllDatabaseSheets, updateSheetData } from './utils/googleSheets';
+import { INITIAL_DATABASE } from './data/initialDemoData';
+import { SHEET_HEADERS } from './constants/headers';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -12,69 +14,34 @@ import { CostView } from './components/CostView';
 import { MasterView } from './components/MasterView';
 import { SystemView } from './components/SystemView';
 
-// 初期ダミーデータ (Googleスプレッドシート未接続時に使用)
-const INITIAL_DATABASE: DatabaseState = {
-  M_Store: [
-    { store_id: 'S001', store_name: '渋谷本店', address: '東京都渋谷区道玄坂1-2-3', fiscal_month: 3 },
-    { store_id: 'S002', store_name: '新宿店', address: '東京都新宿区西新宿2-8-1', fiscal_month: 12 },
-  ],
-  M_User: [
-    { user_id: 'hq@example.com', password: 'password123', user_name: '本部 統括マネージャー', role: 'hq', store_id: 'HQ' },
-    { user_id: 'owner@example.com', password: 'password123', user_name: '山田 太郎 (オーナー)', role: 'owner', store_id: 'S001' },
-    { user_id: 'staff@example.com', password: 'password123', user_name: '佐藤 次郎 (現場スタッフ)', role: 'staff', store_id: 'S001' },
-  ],
-  M_Supplier: [
-    { supplier_id: 1, supplier_name: '肉のハナマサ 精肉部', contact: '03-1111-2222' },
-    { supplier_id: 2, supplier_name: '八百八青果 築地支店', contact: '03-3333-4444' },
-    { supplier_id: 3, supplier_name: '業務用食品スーパー問屋', contact: '03-5555-6666' },
-    { supplier_id: 4, supplier_name: 'サントリー酒類特約店', contact: '03-7777-8888' },
-  ],
-  M_Item: [
-    { item_id: 1, supplier_id: 1, item_name: '牛バラ肉', category: '肉類', unit: 'kg', inventory_target: true, store_id: 'S001' },
-    { item_id: 2, supplier_id: 2, item_name: 'キャベツ', category: '野菜類', unit: '玉', inventory_target: true, store_id: 'S001' },
-    { item_id: 3, supplier_id: 3, item_name: '国産米(コシヒカリ)', category: '穀物', unit: 'kg', inventory_target: true, store_id: 'S001' },
-    { item_id: 4, supplier_id: 3, item_name: '濃口醤油(1.8L)', category: '調味料', unit: '本', inventory_target: false, store_id: 'S001' },
-    { item_id: 5, supplier_id: 4, item_name: '生ビール樽(10L)', category: '飲料・酒類', unit: '樽', inventory_target: true, store_id: 'S001' },
-    { item_id: 6, supplier_id: 1, item_name: '鶏モモ肉', category: '肉類', unit: 'kg', inventory_target: true, store_id: 'S001' },
-    { item_id: 7, supplier_id: 2, item_name: '玉ねぎ', category: '野菜類', unit: 'kg', inventory_target: true, store_id: 'S001' },
-  ],
-  T_Invoice: [
-    { invoice_id: 101, supplier_id: 1, store_id: 'S001', invoice_date: '2026-09-02', status: '確定', file_url: '/dummy/inv101.pdf' },
-    { invoice_id: 102, supplier_id: 2, store_id: 'S001', invoice_date: '2026-09-10', status: '確認待ち', file_url: '/dummy/inv102.pdf' },
-  ],
-  T_Invoice_Line: [
-    { line_id: 1, invoice_id: 101, file_url: '/dummy/inv101.pdf', item_id: 1, item_name: '国産 牛ﾊﾞﾗ ｽﾗｲｽ', inventory_target: true, supplier_id: 1, supplier_name: '肉のﾊﾅﾏｻ', quantity: 20, unit_price: 1300, total_price: 26000, is_manual_edited: false, unit: 'kg', converted_item_name: '牛バラ肉', converted_supplier_name: '肉のハナマサ 精肉部', is_new_item: false, is_new_supplier: false, status: '確定', invoice_date: '2026-09-02', store_id: 'S001' },
-    { line_id: 2, invoice_id: 102, file_url: '/dummy/inv102.pdf', item_id: 2, item_name: '群馬県産 キャベツ 1箱', inventory_target: true, supplier_id: 2, supplier_name: '八百八', quantity: 30, unit_price: 190, total_price: 5700, is_manual_edited: false, unit: '玉', converted_item_name: 'キャベツ', converted_supplier_name: '八百八青果 築地支店', is_new_item: false, is_new_supplier: false, status: '確認待ち', invoice_date: '2026-09-10', store_id: 'S001' },
-  ],
-  T_Inventory_Count: [
-    { count_id: 1, store_id: 'S001', target_month: '2026-09', item_id: 1, item_name: '牛バラ肉', actual_quantity: 8, input_datetime: '2026-09-25 15:30:00', input_user_id: 'staff@example.com', is_new_count_flag: false },
-    { count_id: 2, store_id: 'S001', target_month: '2026-09', item_id: 2, item_name: 'キャベツ', actual_quantity: 12, input_datetime: '2026-09-25 15:32:00', input_user_id: 'staff@example.com', is_new_count_flag: false },
-  ],
-  T_Monthly_Sales: [
-    { sales_id: 1, store_id: 'S001', target_month: '2026-06', sales_amount: 1800000 },
-    { sales_id: 2, store_id: 'S001', target_month: '2026-07', sales_amount: 2100000 },
-    { sales_id: 3, store_id: 'S001', target_month: '2026-08', sales_amount: 2300000 },
-    { sales_id: 4, store_id: 'S001', target_month: '2026-09', sales_amount: 2000000 },
-  ],
-  T_Cost_Calculation: []
-};
-
 export default function App() {
   // システム設定状態 (localStorage保持)
-  const [clientId, setClientId] = useState(localStorage.getItem('GOOGLE_CLIENT_ID') || '');
-  const [spreadsheetId, setSpreadsheetId] = useState(localStorage.getItem('SPREADSHEET_ID') || '1wlmCcfzXir-ZbEMwbX96Db2rRwxt7SStWqOVKImFMTM');
-  const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem('GOOGLE_ACCESS_TOKEN'));
-  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [clientId, setClientId] = useState(
+    localStorage.getItem('GOOGLE_CLIENT_ID') || ''
+  );
+  const [spreadsheetId, setSpreadsheetId] = useState(
+    localStorage.getItem('SPREADSHEET_ID') || '1wlmCcfzXir-ZbEMwbX96Db2rRwxt7SStWqOVKImFMTM'
+  );
+  const [geminiApiKey, setGeminiApiKey] = useState(
+    localStorage.getItem('GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY as string) || ''
+  );
+  const [accessToken, setAccessToken] = useState<string | null>(
+    localStorage.getItem('GOOGLE_ACCESS_TOKEN')
+  );
+
+  // データソースモード ('demo' | 'sheets')
+  const [dataMode, setDataMode] = useState<DataMode>(
+    (localStorage.getItem('DATA_MODE') as DataMode) || 'demo'
+  );
 
   // 全体データ状態
   const [db, setDb] = useState<DatabaseState>(INITIAL_DATABASE);
-  const [isLoading, setIsLoading] = useState(false);
 
   // アクティブ操作状態
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [selectedStoreId, setSelectedStoreId] = useState<string>('S001');
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-09');
-  const [activeUserIndex, setActiveUserIndex] = useState<number>(1); // デフォルト: オーナー
+  const [activeUserIndex, setActiveUserIndex] = useState<number>(0); // デフォルト: 開発者
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [inventoryDraft, setInventoryDraft] = useState<Record<number, string>>({});
 
@@ -88,9 +55,69 @@ export default function App() {
   };
 
   // 閲覧可能店舗リスト
-  const selectableStores = currentUser.role === 'hq'
+  const selectableStores = (currentUser.role === 'developer' || currentUser.role === 'hq')
     ? db.M_Store
     : db.M_Store.filter(s => s.store_id === currentUser.store_id);
+
+  // Google ログイン処理
+  const googleLogin = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    onSuccess: (tokenResponse) => {
+      setAccessToken(tokenResponse.access_token);
+      localStorage.setItem('GOOGLE_ACCESS_TOKEN', tokenResponse.access_token);
+      showToast('Google認証に成功しました。スプレッドシートのデータを読み込みます...', 'info');
+      loadAllSheets(tokenResponse.access_token);
+    },
+    onError: () => showToast('Googleログインに失敗しました', 'error')
+  });
+
+  // スプレッドシート全データのロード
+  const loadAllSheets = async (token?: string, targetSheetId?: string) => {
+    const activeToken = token || accessToken;
+    const activeSheetId = targetSheetId || spreadsheetId;
+
+    if (!activeSheetId) {
+      showToast('スプレッドシートIDを設定してください（システム管理より変更可）', 'warning');
+      return;
+    }
+    if (!activeToken) {
+      showToast('スプレッドシートの読み込みにはGoogleログインが必要です', 'warning');
+      return;
+    }
+
+    try {
+      const data = await fetchAllDatabaseSheets(activeToken, activeSheetId);
+      setDb(data);
+      showToast('スプレッドシートの最新データと同期完了しました！', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('データ取得エラー。スプレッドシートIDとアクセス権限を確認してください', 'error');
+    }
+  };
+
+  // 本番連携モード切り替え時の制御
+  const handleSetDataMode = (mode: DataMode) => {
+    setDataMode(mode);
+    localStorage.setItem('DATA_MODE', mode);
+
+    if (mode === 'demo') {
+      setDb(INITIAL_DATABASE);
+      showToast('デモデータ表示モードに切り替えました', 'info');
+    } else {
+      if (accessToken) {
+        loadAllSheets(accessToken);
+      } else {
+        showToast('スプレッドシート連携モードです。Googleログインを実行してください', 'warning');
+      }
+    }
+  };
+
+  // 【追加】本番モード有効かつトークン保持時に自動ロードするフック
+  useEffect(() => {
+    if (dataMode === 'sheets' && accessToken && spreadsheetId) {
+      loadAllSheets(accessToken, spreadsheetId);
+    }
+  }, [dataMode, accessToken, spreadsheetId]);
 
   // 初期の棚卸ドラフトをセット
   useEffect(() => {
@@ -111,55 +138,24 @@ export default function App() {
     }, 4000);
   };
 
-  // Google ログイン処理
-  const googleLogin = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
-    onSuccess: (tokenResponse) => {
-      setAccessToken(tokenResponse.access_token);
-      localStorage.setItem('GOOGLE_ACCESS_TOKEN', tokenResponse.access_token);
-      showToast('Google認証に成功しました。スプレッドシートのデータを読み込みます...', 'info');
-      loadAllSheets(tokenResponse.access_token);
-    },
-    onError: () => showToast('Googleログインに失敗しました', 'error')
-  });
+  // 権限切替
+  const toggleUserRole = () => {
+    const isHighPrivilege = currentUser.role === 'developer' || currentUser.role === 'hq';
 
-  // スプレッドシート全データのロード
-  const loadAllSheets = async (token: string) => {
-    if (!spreadsheetId) {
-      showToast('スプレッドシートIDを設定してください', 'warning');
+    if (dataMode === 'sheets' && !isHighPrivilege) {
+      showToast('スプレッドシート連携モード中は一般権限の切り替えができません', 'warning');
       return;
     }
-    setIsLoading(true);
-    try {
-      const data = await fetchAllDatabaseSheets(token, spreadsheetId);
-      setDb(prev => ({
-        ...prev,
-        ...data
-      }));
-      showToast('スプレッドシートの最新データと同期しました！', 'success');
-    } catch (error) {
-      console.error(error);
-      showToast('データ取得エラー。IDと権限を確認してください', 'error');
-    } finally {
-      setIsLoading(false);
+
+    if (!isHighPrivilege) {
+      showToast('権限切替は開発者または本部責任者のみ実行可能です', 'warning');
+      return;
     }
-  };
 
-  // 設定保存
-  const saveSettings = () => {
-    localStorage.setItem('GOOGLE_CLIENT_ID', clientId);
-    localStorage.setItem('SPREADSHEET_ID', spreadsheetId);
-    setShowConfigModal(false);
-    showToast('システム設定を保存しました。反映のため再読み込みします。', 'info');
-    setTimeout(() => window.location.reload(), 1000);
-  };
-
-  // 権限切替 (HQ -> Owner -> Staff)
-  const toggleUserRole = () => {
     const nextIndex = (activeUserIndex + 1) % db.M_User.length;
     setActiveUserIndex(nextIndex);
     const nextUser = db.M_User[nextIndex];
-    const roleLabels = { hq: '本部統括', owner: '店舗オーナー', staff: 'スタッフ' };
+    const roleLabels = { developer: '開発者', hq: '本部統括', owner: '店舗オーナー', staff: 'スタッフ' };
     showToast(`権限を「${roleLabels[nextUser.role]}」へ切替えました`, 'info');
 
     if (nextUser.role === 'staff' && ['master', 'system', 'matching'].includes(activeTab)) {
@@ -167,15 +163,20 @@ export default function App() {
     }
   };
 
-  // 特定シートの更新・スプレッドシート同期
-  const saveSheetToGoogle = async (sheetName: keyof DatabaseState, headers: string[], records: any[]) => {
+  // スプレッドシート同期
+  const saveSheetToGoogle = async (sheetName: keyof DatabaseState, headers?: string[], records?: any[]) => {
+    if (dataMode === 'demo') {
+      return;
+    }
     if (!accessToken) {
-      showToast('スプレッドシート同期にはGoogleログインが必要です（ローカルデータのみ更新）', 'warning');
+      showToast('スプレッドシート同期にはGoogleログインが必要です', 'warning');
       return;
     }
     try {
-      await updateSheetData(accessToken, spreadsheetId, sheetName, headers, records);
-      showToast(`シート「${sheetName}」をスプレッドシートに保存・同期しました！`, 'success');
+      const targetHeaders = headers || SHEET_HEADERS[sheetName];
+      const targetRecords = records || db[sheetName];
+      await updateSheetData(accessToken, spreadsheetId, sheetName, targetHeaders, targetRecords);
+      showToast(`シート「${sheetName}」を保存・同期しました！`, 'success');
     } catch (error) {
       showToast(`「${sheetName}」の同期に失敗しました`, 'error');
     }
@@ -198,7 +199,7 @@ export default function App() {
     return db.T_Inventory_Count.filter(c => c.store_id === targetStore && c.is_new_count_flag);
   }, [db.T_Inventory_Count, selectedStoreId]);
 
-  // 当月店舗別原価計算リアルタイム算出
+  // 原価計算
   const currentStoreCostCalculations = useMemo<TCostCalculation[]>(() => {
     const targetStore = selectedStoreId === 'HQ' ? 'S001' : selectedStoreId;
     const storeItems = db.M_Item.filter(i => i.store_id === targetStore || selectedStoreId === 'HQ');
@@ -253,7 +254,6 @@ export default function App() {
     });
   }, [db, selectedStoreId, selectedMonth, inventoryDraft]);
 
-  // 当月原価合計・仕入合計
   const currentMonthCostTotal = currentStoreCostCalculations.reduce((sum, i) => sum + i.consumption_cost, 0);
   const confirmedLines = currentStoreInvoiceLines.filter(l => l.status === '確定');
   const currentMonthPurchaseTotal = confirmedLines.reduce((sum, l) => sum + (Number(l.quantity) * Number(l.unit_price)), 0);
@@ -280,6 +280,7 @@ export default function App() {
         toggleUserRole={toggleUserRole}
         unresolvedInvoicesCount={unresolvedInvoicesCount}
         unlinkedMatchingCount={unlinkedCountItems.length}
+        dataMode={dataMode}
       />
 
       {/* メインエリア */}
@@ -294,6 +295,7 @@ export default function App() {
           selectedMonth={selectedMonth}
           setSelectedMonth={setSelectedMonth}
           toggleUserRole={toggleUserRole}
+          dataMode={dataMode}
         />
 
         <main className="flex-1 overflow-y-auto p-6">
@@ -395,43 +397,22 @@ export default function App() {
               setT_Monthly_Sales={(val) => setDb(prev => ({ ...prev, T_Monthly_Sales: typeof val === 'function' ? val(prev.T_Monthly_Sales) : val }))}
               showToast={showToast}
               saveSheetToGoogle={saveSheetToGoogle}
+              dataMode={dataMode}
+              setDataMode={handleSetDataMode}
+              currentUser={currentUser}
+              clientId={clientId}
+              setClientId={setClientId}
+              spreadsheetId={spreadsheetId}
+              setSpreadsheetId={setSpreadsheetId}
+              geminiApiKey={geminiApiKey}
+              setGeminiApiKey={setGeminiApiKey}
+              accessToken={accessToken}
+              googleLogin={googleLogin}
+              reloadSheets={() => loadAllSheets(accessToken || undefined, spreadsheetId)}
             />
           )}
         </main>
       </div>
-
-      {/* システム初期設定・API設定モーダル */}
-      {showConfigModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-neutral-200">
-            <h3 className="text-sm font-bold text-neutral-900 mb-4 flex items-center gap-2">
-              <i className="fa-solid fa-sliders text-neutral-700" />
-              <span>システム管理・API連携設定</span>
-            </h3>
-
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-neutral-800 mb-1">Google OAuth クライアントID</label>
-                <input type="text" value={clientId} onChange={e => setClientId(e.target.value)} placeholder="xxxx.apps.googleusercontent.com" className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-mono" />
-              </div>
-
-              <div>
-                <label className="block font-bold text-neutral-800 mb-1">スプレッドシートID</label>
-                <input type="text" value={spreadsheetId} onChange={e => setSpreadsheetId(e.target.value)} placeholder="1wlmCcfzXir..." className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-mono" />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 mt-6 pt-4 border-t">
-              <button onClick={() => setShowConfigModal(false)} className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-xs font-semibold">
-                キャンセル
-              </button>
-              <button onClick={saveSettings} className="px-5 py-2 bg-neutral-950 hover:bg-black text-white rounded-lg text-xs font-bold">
-                設定を保存する
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

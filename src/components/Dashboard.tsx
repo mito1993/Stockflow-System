@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MUser, MStore, TInvoiceLine, TCostCalculation, TMonthlySales, TabType } from '../types';
+import { formatCurrency, formatMonthJP } from '../utils/formatters';
 
 interface DashboardProps {
   currentUser: MUser;
@@ -13,7 +14,7 @@ interface DashboardProps {
   setT_Monthly_Sales: React.Dispatch<React.SetStateAction<TMonthlySales[]>>;
   setActiveTab: (tab: TabType) => void;
   showToast: (message: string, type?: any) => void;
-  saveSheetToGoogle?: (sheetName: any, headers: string[], records: any[]) => void;
+  saveSheetToGoogle?: (sheetName: any, headers?: string[], records?: any[]) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -34,15 +35,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [modalTargetMonth, setModalTargetMonth] = useState('2026-09');
   const [modalSalesValue, setModalSalesValue] = useState(2000000);
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(val || 0);
-  };
-
-  const formatMonthJP = (mStr: string) => {
-    if (!mStr) return '';
-    const [year, month] = mStr.split('-');
-    return `${year}年${Number(month)}月`;
-  };
+  // 編集可能な権限判定（開発者、本部、オーナー）
+  const canEditSales = currentUser.role === 'developer' || currentUser.role === 'hq' || currentUser.role === 'owner';
 
   // 当月指標計算
   const currentMonthCostTotal = currentStoreCostCalculations.reduce((sum, i) => sum + i.consumption_cost, 0);
@@ -53,7 +47,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const currentSalesAmount = salesRecord ? Number(salesRecord.sales_amount) : 2000000;
   const currentCostRate = currentSalesAmount > 0 ? ((currentMonthCostTotal / currentSalesAmount) * 100).toFixed(1) : '0.0';
 
-  // 店舗別月次推移表データ (要件定義書ベース)
+  // 店舗別月次推移表データ
   const baseMonthlyData: Record<string, { beginningStock: number; monthlyPurchase: number; endingStock: number; cost: number }> = {
     '2026-06': { beginningStock: 180000, monthlyPurchase: 550000, endingStock: 190000, cost: 540000 },
     '2026-07': { beginningStock: 190000, monthlyPurchase: 640000, endingStock: 200000, cost: 630000 },
@@ -101,7 +95,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         ];
       }
       if (saveSheetToGoogle) {
-        saveSheetToGoogle('T_Monthly_Sales', ['sales_id', 'store_id', 'target_month', 'sales_amount'], updated);
+        saveSheetToGoogle('T_Monthly_Sales', undefined, updated);
       }
       return updated;
     });
@@ -197,7 +191,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-sm">
           <div className="flex items-center justify-between text-neutral-500 text-xs font-medium mb-1">
             <span>当月売上高</span>
-            {(currentUser.role === 'owner' || currentUser.role === 'hq') && (
+            {canEditSales && (
               <button
                 onClick={() => openSalesEditModal(selectedMonth)}
                 className="text-[11px] text-neutral-700 hover:text-black font-semibold flex items-center gap-1 bg-neutral-100 hover:bg-neutral-200 px-2 py-0.5 rounded transition-colors"
@@ -326,7 +320,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <td key={col.month} className={`p-2.5 text-right font-mono border-r border-neutral-200/60 tabular-nums ${col.month === selectedMonth ? 'bg-neutral-100/30 font-semibold text-neutral-800' : ''}`}>
                     <div className="flex items-center justify-end gap-1.5">
                       <span>{formatCurrency(col.salesAmount)}</span>
-                      {(currentUser.role === 'owner' || currentUser.role === 'hq') && (
+                      {canEditSales && (
                         <button
                           onClick={() => openSalesEditModal(col.month)}
                           className="text-neutral-400 hover:text-black p-0.5 transition-colors"

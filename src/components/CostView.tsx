@@ -1,5 +1,6 @@
 import React from 'react';
 import { TCostCalculation, TInvoiceLine, MSupplier } from '../types';
+import { formatCurrency } from '../utils/formatters';
 
 interface CostViewProps {
   currentStoreCostCalculations: TCostCalculation[];
@@ -18,10 +19,6 @@ export const CostView: React.FC<CostViewProps> = ({
   currentMonthPurchaseTotal,
   showToast,
 }) => {
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(val || 0);
-  };
-
   const supplierSummaryMap: Record<number, { supplier_id: number; supplier_name: string; invoiceCount: number; totalAmount: number }> = {};
 
   currentStoreInvoiceLines.filter(l => l.status === '確定').forEach(line => {

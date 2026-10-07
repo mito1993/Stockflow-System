@@ -24,14 +24,13 @@ export const fetchSheetData = async <T>(
       return []; // データ行(3行目以降)がない場合は空配列
     }
 
-    const headers: string[] = data.values[0];   // 1行目: 英語キー
-    const dataRows: any[][] = data.values.slice(2); // 3行目以降: 実データ
+    const headers: string[] = data.values[0];        // 1行目: 英語キー
+    const dataRows: any[][] = data.values.slice(2);  // 3行目以降: 実データ
 
     return dataRows.map((row) => {
       const record: any = {};
       headers.forEach((key, index) => {
         let val = row[index] !== undefined ? row[index] : '';
-        // ブール値文字の型変換 (TRUE / FALSE)
         if (val === 'TRUE' || val === true) val = true;
         if (val === 'FALSE' || val === false) val = false;
         record[key] = val;

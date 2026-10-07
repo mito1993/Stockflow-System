@@ -15,7 +15,7 @@ export interface MUser {
   user_id: string;       // メールアドレス / 主キー
   password: string;      // パスワード
   user_name: string;     // 氏名
-  role: 'hq' | 'owner' | 'staff'; // 役割
+  role: 'developer' | 'hq' | 'owner' | 'staff'; // 役割（開発者権限を追加）
   store_id: string;      // 所属店舗ID
 }
 
@@ -49,26 +49,26 @@ export interface TInvoice {
 
 // T_Invoice_Line (仕入明細)
 export interface TInvoiceLine {
-  line_id: number;                 // 明細ID / 主キー
-  invoice_id: number;              // 紐づく伝票ID
-  file_url: string;                // 請求書/納品書URL
+  line_id: number;                  // 明細ID / 主キー
+  invoice_id: number;               // 紐づく伝票ID
+  file_url: string;                 // 請求書/納品書URL
   item_id: number | null;          // 食材ID
-  item_name: string;               // 食材名(生OCR)
-  inventory_target: boolean;       // 棚卸対象
-  supplier_id: number;             // 取引先ID
-  supplier_name: string;           // 取引先名(生OCR)
-  quantity: number;                // 個数・数量
-  unit_price: number;              // 単価
-  total_price: number;             // 総額
-  is_manual_edited: boolean;       // 手動修正フラグ
-  unit: string;                    // 単位
-  converted_item_name: string;     // 変換後食材名
+  item_name: string;                // 食材名(生OCR)
+  inventory_target: boolean;        // 棚卸対象
+  supplier_id: number;              // 取引先ID
+  supplier_name: string;            // 取引先名(生OCR)
+  quantity: number;                 // 個数・数量
+  unit_price: number;               // 単価
+  total_price: number;              // 総額
+  is_manual_edited: boolean;        // 手動修正フラグ
+  unit: string;                     // 単位
+  converted_item_name: string;      // 変換後食材名
   converted_supplier_name: string; // 変換後取引先名
-  is_new_item: boolean;            // 新規食材フラグ
-  is_new_supplier: boolean;        // 新規取引先フラグ
-  status?: string;                 // 伝票表示用ステータス
-  invoice_date?: string;           // 伝票日付(結合用)
-  store_id?: string;               // 店舗ID(結合用)
+  is_new_item: boolean;             // 新規食材フラグ
+  is_new_supplier: boolean;         // 新規取引先フラグ
+  status?: string;                  // 伝票表示用ステータス
+  invoice_date?: string;            // 伝票日付(結合用)
+  store_id?: string;                // 店舗ID(結合用)
 }
 
 // T_Inventory_Count (棚卸記録)
@@ -128,6 +128,8 @@ export interface DatabaseState {
 // 2. アプリケーション共通UIステート型定義
 // ==========================================
 export type TabType = 'dashboard' | 'ocr' | 'matching' | 'inventory' | 'cost' | 'master' | 'system';
+
+export type DataMode = 'demo' | 'sheets';
 
 export interface ToastMessage {
   id: number;

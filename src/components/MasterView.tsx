@@ -9,7 +9,7 @@ interface MasterViewProps {
   setT_Invoice_Line: React.Dispatch<React.SetStateAction<TInvoiceLine[]>>;
   selectedStoreId: string;
   showToast: (message: string, type?: any) => void;
-  saveSheetToGoogle?: (sheetName: any, headers: string[], records: any[]) => void;
+  saveSheetToGoogle?: (sheetName: any, headers?: string[], records?: any[]) => void;
 }
 
 export const MasterView: React.FC<MasterViewProps> = ({
@@ -27,7 +27,7 @@ export const MasterView: React.FC<MasterViewProps> = ({
   const toggleInventoryTarget = (item: MItem) => {
     setM_Item(prev => {
       const updated = prev.map(i => i.item_id === item.item_id ? { ...i, inventory_target: !i.inventory_target } : i);
-      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', ['item_id', 'supplier_id', 'item_name', 'inventory_target', 'category', 'unit', 'store_id'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', undefined, updated);
       return updated;
     });
     showToast(`「${item.item_name}」の棚卸対象フラグを変更しました`, 'info');
@@ -42,13 +42,13 @@ export const MasterView: React.FC<MasterViewProps> = ({
 
     setM_Item(prev => {
       const updated = prev.map(i => i.item_id === item.item_id ? { ...i, item_name: trimmed } : i);
-      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', ['item_id', 'supplier_id', 'item_name', 'inventory_target', 'category', 'unit', 'store_id'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', undefined, updated);
       return updated;
     });
 
     setT_Invoice_Line(prev => {
       const updated = prev.map(l => l.item_id === item.item_id ? { ...l, converted_item_name: trimmed } : l);
-      if (saveSheetToGoogle) saveSheetToGoogle('T_Invoice_Line', ['line_id', 'invoice_id', 'file_url', 'item_id', 'item_name', 'inventory_target', 'supplier_id', 'supplier_name', 'quantity', 'unit_price', 'total_price', 'is_manual_edited', 'unit', 'converted_item_name', 'converted_supplier_name', 'is_new_item', 'is_new_supplier'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('T_Invoice_Line', undefined, updated);
       return updated;
     });
 
@@ -72,7 +72,7 @@ export const MasterView: React.FC<MasterViewProps> = ({
 
     setM_Item(prev => {
       const updated = [...prev, newItem];
-      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', ['item_id', 'supplier_id', 'item_name', 'inventory_target', 'category', 'unit', 'store_id'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', undefined, updated);
       return updated;
     });
 
@@ -83,7 +83,7 @@ export const MasterView: React.FC<MasterViewProps> = ({
     if (!confirm('この品目を削除しますか？')) return;
     setM_Item(prev => {
       const updated = prev.filter(i => i.item_id !== itemId);
-      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', ['item_id', 'supplier_id', 'item_name', 'inventory_target', 'category', 'unit', 'store_id'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('M_Item', undefined, updated);
       return updated;
     });
     showToast('品目を削除しました', 'warning');
@@ -102,7 +102,7 @@ export const MasterView: React.FC<MasterViewProps> = ({
 
     setM_Supplier(prev => {
       const updated = [...prev, newSup];
-      if (saveSheetToGoogle) saveSheetToGoogle('M_Supplier', ['supplier_id', 'supplier_name', 'contact'], updated);
+      if (saveSheetToGoogle) saveSheetToGoogle('M_Supplier', undefined, updated);
       return updated;
     });
 
