@@ -11,7 +11,7 @@ interface HeaderProps {
   availableMonths: string[];
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
-  toggleUserRole: () => void;
+  onLogout: () => void;
   dataMode: DataMode;
 }
 
@@ -24,8 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   availableMonths,
   selectedMonth,
   setSelectedMonth,
-  toggleUserRole,
-  dataMode,
+  onLogout,
 }) => {
   const tabTitles: Record<TabType, string> = {
     dashboard: 'ダッシュボード・原価推移表',
@@ -37,8 +36,12 @@ export const Header: React.FC<HeaderProps> = ({
     system: 'システム管理',
   };
 
-  // 開発者または本部は常に切り替え可能
-  const isRoleToggleDisabled = dataMode === 'sheets' && (currentUser.role !== 'developer' && currentUser.role !== 'hq');
+  const roleLabels = {
+    developer: '開発者（フルアクセス）',
+    hq: '本部（全店舗閲覧）',
+    owner: '店舗責任者（管理者）',
+    staff: '現場担当（閲覧制限中）',
+  };
 
   return (
     <header className="h-14 bg-white border-b border-neutral-200/90 flex items-center justify-between px-6 shrink-0 z-10">
@@ -46,23 +49,9 @@ export const Header: React.FC<HeaderProps> = ({
         <h1 className="text-sm font-bold tracking-tight text-neutral-900 flex items-center gap-2">
           <span>{tabTitles[activeTab]}</span>
         </h1>
-        {currentUser.role === 'developer' ? (
-          <span className="hidden sm:inline-block px-2 py-0.5 bg-neutral-900 text-white border border-neutral-800 rounded text-[10px] font-mono font-medium">
-            開発者（フルアクセス）
-          </span>
-        ) : currentUser.role === 'hq' ? (
-          <span className="hidden sm:inline-block px-2 py-0.5 bg-neutral-100 text-neutral-700 border border-neutral-200 rounded text-[10px] font-mono font-medium">
-            本部（全店舗閲覧）
-          </span>
-        ) : currentUser.role === 'owner' ? (
-          <span className="hidden sm:inline-block px-2 py-0.5 bg-neutral-100 text-neutral-700 border border-neutral-200 rounded text-[10px] font-mono font-medium">
-            店舗責任者（管理者）
-          </span>
-        ) : (
-          <span className="hidden sm:inline-block px-2 py-0.5 bg-neutral-100 text-neutral-500 border border-neutral-200 rounded text-[10px] font-mono">
-            現場担当（閲覧制限中）
-          </span>
-        )}
+        <span className="hidden sm:inline-block px-2 py-0.5 bg-neutral-100 text-neutral-700 border border-neutral-200 rounded text-[10px] font-mono font-medium">
+          {roleLabels[currentUser.role]}
+        </span>
       </div>
 
       <div className="flex items-center gap-2">
@@ -98,33 +87,14 @@ export const Header: React.FC<HeaderProps> = ({
           </select>
         </div>
 
-        {/* 権限切替クイックボタン */}
+        {/* ログアウトボタン */}
         <button
-          onClick={toggleUserRole}
-          disabled={isRoleToggleDisabled}
-          title={
-            isRoleToggleDisabled
-              ? '一般権限ではスプレッドシート連携モード中に切替できません'
-              : '権限を切替'
-          }
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors border shadow-sm ${
-            isRoleToggleDisabled
-              ? 'bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed opacity-60'
-              : 'bg-white hover:bg-neutral-100 text-neutral-800 border-neutral-300 active:scale-95'
-          }`}
+          onClick={onLogout}
+          title="ログアウト"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors border shadow-sm bg-white hover:bg-neutral-100 text-neutral-800 border-neutral-300 active:scale-95 cursor-pointer"
         >
-          <i className={
-            currentUser.role === 'developer'
-              ? 'fa-solid fa-code text-neutral-900'
-              : currentUser.role === 'hq'
-              ? 'fa-solid fa-building-flag text-neutral-700'
-              : currentUser.role === 'owner'
-              ? 'fa-solid fa-shield-halved text-neutral-700'
-              : 'fa-solid fa-user text-neutral-500'
-          } />
-          <span>
-            {currentUser.role === 'developer' ? '開発者' : currentUser.role === 'hq' ? '本部' : currentUser.role === 'owner' ? 'オーナー' : 'スタッフ'}
-          </span>
+          <i className="fa-solid fa-right-from-bracket text-neutral-600 text-xs" />
+          <span>ログアウト</span>
         </button>
       </div>
     </header>

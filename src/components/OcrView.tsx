@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TInvoiceLine, MItem, TabType } from '../types';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatMonthJP } from '../utils/formatters';
 
 interface OcrViewProps {
   currentStoreInvoiceLines: TInvoiceLine[];
@@ -9,6 +9,7 @@ interface OcrViewProps {
   unresolvedInvoicesCount: number;
   selectedMonth: string;
   selectedStoreId: string;
+  availableMonths: string[];
   showToast: (message: string, type?: any) => void;
   setActiveTab: (tab: TabType) => void;
   saveSheetToGoogle?: (sheetName: any, headers?: string[], records?: any[]) => void;
@@ -21,12 +22,21 @@ export const OcrView: React.FC<OcrViewProps> = ({
   unresolvedInvoicesCount,
   selectedMonth,
   selectedStoreId,
+  availableMonths,
   showToast,
   setActiveTab,
   saveSheetToGoogle,
 }) => {
+  // OCRアップロード時の「仕入月」必須選択ステート（初期値は現在選択中の月）
+  const [targetPurchaseMonth, setTargetPurchaseMonth] = useState<string>(selectedMonth);
+
   const simulateOcrUpload = () => {
-    showToast('AI/OCR解析を実行しています...', 'info');
+    if (!targetPurchaseMonth) {
+      showToast('仕入月を必ず選択してください', 'error');
+      return;
+    }
+
+    showToast(`AI/OCR解析を実行しています (${formatMonthJP(targetPurchaseMonth)} 分)...`, 'info');
     setTimeout(() => {
       const targetStore = selectedStoreId === 'HQ' ? 'S001' : selectedStoreId;
       const newLine: TInvoiceLine = {
@@ -48,7 +58,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
         is_new_item: false,
         is_new_supplier: false,
         status: '確認待ち',
-        invoice_date: `${selectedMonth}-26`,
+        purchase_month: targetPurchaseMonth,
         store_id: targetStore,
       };
 
@@ -60,8 +70,18 @@ export const OcrView: React.FC<OcrViewProps> = ({
         return updated;
       });
 
-      showToast('OCR解析が完了しました。「牛バラ肉」へ名寄せ照合されました。', 'success');
+      showToast(`OCR解析完了: 「牛バラ肉」へ名寄せ照合 (${targetPurchaseMonth}分)`, 'success');
     }, 800);
+  };
+
+  // 確定前伝票の仕入月変更
+  const handlePurchaseMonthChange = (line: TInvoiceLine, newMonth: string) => {
+    setT_Invoice_Line(prev => {
+      const updated = prev.map(l => l.line_id === line.line_id ? { ...l, purchase_month: newMonth, is_manual_edited: true } : l);
+      if (saveSheetToGoogle) saveSheetToGoogle('T_Invoice_Line', undefined, updated);
+      return updated;
+    });
+    showToast(`仕入月を「${formatMonthJP(newMonth)}」に更新しました`, 'info');
   };
 
   const handleLineItemChange = (line: TInvoiceLine, newItemId: string) => {
@@ -87,7 +107,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
       return updated;
     });
 
-    showToast(`品目を「${targetItem.item_name}」に変更しました`, 'info');
+    showToast(`食材を「${targetItem.item_name}」に変更しました`, 'info');
   };
 
   const confirmSingleInvoiceLine = (line: TInvoiceLine) => {
@@ -114,24 +134,37 @@ export const OcrView: React.FC<OcrViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* ドロップゾーン */}
-      <div
-        onClick={simulateOcrUpload}
-        className="border-2 border-dashed border-neutral-300 hover:border-neutral-900 bg-white hover:bg-neutral-50/80 rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center shadow-sm"
-      >
-        <div className="w-12 h-12 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-800 text-xl mb-3">
-          <i className="fa-solid fa-cloud-arrow-up" />
+      {/* OCRアップロード＆仕入月選択カード */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex-1 w-full">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-5 h-5 rounded-full bg-neutral-950 text-white flex items-center justify-center text-xs font-bold font-mono">1</span>
+            <label className="font-bold text-neutral-900 text-xs">登録対象の「仕入月」を選択してください（必須）</label>
+          </div>
+          <select
+            value={targetPurchaseMonth}
+            onChange={(e) => setTargetPurchaseMonth(e.target.value)}
+            className="w-full sm:w-64 p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-sm font-bold text-neutral-900 outline-none focus:border-neutral-900"
+          >
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>
+                {formatMonthJP(m)} 仕入伝票分
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-neutral-500 mt-1">※ 確定処理前の仕入伝票は、後からでも仕入月を自由に変更・修正できます。</p>
         </div>
-        <h3 className="font-bold text-neutral-900 text-sm mb-1">
-          請求書・納品書の画像/PDFをアップロード（AI/OCR解析シミュレータ）
-        </h3>
-        <p className="text-xs text-neutral-500 max-w-lg mb-3">
-          画像から食材名、取引先、数量、単価を自動抽出して名寄せレコメンドします。
-        </p>
-        <span className="px-3 py-1.5 bg-neutral-900 text-white font-medium text-xs rounded-md shadow-sm flex items-center gap-1.5">
-          <i className="fa-solid fa-wand-magic-sparkles text-[10px]" />
-          <span>クリックして新規伝票OCRをシミュレート</span>
-        </span>
+
+        <div
+          onClick={simulateOcrUpload}
+          className="flex-1 w-full border-2 border-dashed border-neutral-300 hover:border-neutral-900 bg-neutral-50/60 hover:bg-neutral-100 rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+        >
+          <i className="fa-solid fa-cloud-arrow-up text-xl text-neutral-700 mb-1" />
+          <div className="font-bold text-neutral-900 text-xs mb-1">伝票画像/PDFをアップロード (AI/OCRシミュレータ)</div>
+          <span className="px-3 py-1 bg-neutral-900 text-white font-medium text-[11px] rounded shadow-sm">
+            クリックして「{formatMonthJP(targetPurchaseMonth)}」の伝票をOCR登録
+          </span>
+        </div>
       </div>
 
       {/* 明細テーブル */}
@@ -157,7 +190,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-neutral-100 text-neutral-700 font-semibold border-b border-neutral-200">
               <tr>
-                <th className="p-3">伝票日付</th>
+                <th className="p-3">仕入月</th>
                 <th className="p-3">取引先 (生OCR ➔ 名寄せ)</th>
                 <th className="p-3">食材名 (生OCR ➔ マスタ候補)</th>
                 <th className="p-3 text-center">単位</th>
@@ -172,7 +205,21 @@ export const OcrView: React.FC<OcrViewProps> = ({
             <tbody className="divide-y divide-neutral-100 font-normal">
               {currentStoreInvoiceLines.map(line => (
                 <tr key={line.line_id} className="hover:bg-neutral-50">
-                  <td className="p-3 text-neutral-500 font-mono">{line.invoice_date}</td>
+                  <td className="p-3 font-mono font-bold text-neutral-900">
+                    {line.status !== '確定' ? (
+                      <select
+                        value={line.purchase_month || selectedMonth}
+                        onChange={(e) => handlePurchaseMonthChange(line, e.target.value)}
+                        className="p-1 bg-white border border-neutral-300 rounded text-xs font-mono font-bold outline-none"
+                      >
+                        {availableMonths.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-neutral-100 rounded text-neutral-800">{line.purchase_month}</span>
+                    )}
+                  </td>
                   <td className="p-3">
                     <div className="text-[10px] text-neutral-400 font-mono">生: {line.supplier_name}</div>
                     <div className="font-semibold text-neutral-900 mt-0.5">{line.converted_supplier_name}</div>
@@ -209,7 +256,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
                   <td className="p-3 text-right font-semibold font-mono">{formatCurrency(line.quantity * line.unit_price)}</td>
                   <td className="p-3 text-center">
                     <span className="text-[10px] font-mono text-neutral-500">
-                      {line.is_manual_edited ? '修正済' : 'AI初期値'}
+                      {line.is_manual_edited ? '手動修正' : 'AI初期値'}
                     </span>
                   </td>
                   <td className="p-3 text-center">

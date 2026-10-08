@@ -46,8 +46,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const categories = Array.from(new Set(storeInventoryItems.map(i => i.category)));
 
+  // 【要件適用】「当月の仕入れ記録（monthly_purchase > 0）」または「期首の在庫記録（beginning_stock > 0）」がある食材のみ表示
   const filteredItems = currentStoreCostCalculations.filter(i => {
     if (!i.inventory_target) return false;
+
+    // 当月仕入があるか、期首在庫がある食材のみを抽出
+    const hasActivity = (i.monthly_purchase > 0) || (i.beginning_stock > 0);
+    if (!hasActivity) return false;
+
     if (selectedCategory && i.category !== selectedCategory) return false;
     if (selectedSupplierId && i.supplier_id !== Number(selectedSupplierId)) return false;
     if (searchKeyword) {
@@ -59,7 +65,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     return true;
   });
 
-  const filledInventoryCount = storeInventoryItems.filter(item => {
+  const filledInventoryCount = filteredItems.filter(item => {
     const val = inventoryDraft[item.item_id];
     return val !== '' && val !== undefined && val !== null;
   }).length;
@@ -78,7 +84,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setT_Inventory_Count(prev => {
       const updated = [...prev];
 
-      storeInventoryItems.forEach(item => {
+      filteredItems.forEach(item => {
         let val = inventoryDraft[item.item_id];
         if (val === '' || val === undefined || val === null) {
           val = '0';
@@ -124,13 +130,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     if (failSafeCount > 0) {
       showToast(`実地棚卸を保存（未入力 ${failSafeCount} 件を安全補完「0」処理）`, 'warning');
     } else {
-      showToast(`全 ${storeInventoryItems.length} 品目の棚卸データを保存しました`, 'success');
+      showToast(`表示中の全 ${filteredItems.length} 食材の棚卸データを保存しました`, 'success');
     }
   };
 
   const handleAddNewCountItem = () => {
     if (!newCountForm.item_name.trim()) {
-      showToast('食材・品目名を入力してください', 'error');
+      showToast('食材名を入力してください', 'error');
       return;
     }
 
@@ -175,7 +181,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     setInventoryDraft(prev => ({ ...prev, [newId]: String(qty) }));
     setShowNewCountModal(false);
-    showToast(`「${newCountForm.item_name}」を臨時品目（未照合）として登録しました`, 'success');
+    showToast(`「${newCountForm.item_name}」を臨時食材（未照合）として登録しました`, 'success');
   };
 
   return (
@@ -189,13 +195,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           <div>
             <h2 className="font-bold text-sm md:text-base text-white">月次実地棚卸入力 (現場タブレットモード)</h2>
             <p className="text-xs text-neutral-400 mt-0.5">
-              品目マスタで「棚卸対象」に指定された品目のみ表示されています。未入力保存時は自動的に「0」補完されます。
+              当月に「仕入実績」または「期首在庫」が存在する棚卸対象食材のみ自動抽出して表示しています。
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-lg text-xs text-neutral-300">
-          <i className="fa-solid fa-shield-halved text-neutral-400" />
-          <span>自動補完(空欄 ➔ 0) 有効</span>
+          <i className="fa-solid fa-filter text-neutral-400" />
+          <span>動的絞り込み(当月仕入/期首在庫有) 有効</span>
         </div>
       </div>
 
@@ -208,7 +214,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               type="text"
               value={searchKeyword}
               onChange={e => setSearchKeyword(e.target.value)}
-              placeholder="品目名・カテゴリで検索..."
+              placeholder="食材名・カテゴリで検索..."
               className="w-full pl-8 pr-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-xs font-medium text-neutral-900 outline-none"
             />
           </div>
@@ -218,7 +224,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             onChange={e => setSelectedCategory(e.target.value)}
             className="w-full sm:w-40 px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-xs font-medium text-neutral-800 outline-none"
           >
-            <option value="">全カテゴリ ({storeInventoryItems.length})</option>
+            <option value="">全カテゴリ ({filteredItems.length})</option>
             {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
           </select>
 
@@ -237,7 +243,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           className="w-full md:w-auto px-3.5 py-2 bg-neutral-900 hover:bg-black text-white font-medium text-xs rounded-md shadow-sm flex items-center justify-center gap-1.5 shrink-0"
         >
           <i className="fa-solid fa-plus text-[10px]" />
-          <span>臨時品目の棚卸追加</span>
+          <span>臨時食材の棚卸追加</span>
         </button>
       </div>
 
@@ -320,7 +326,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       {/* 固定下部保存バー */}
       <div className="fixed bottom-0 left-60 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-200 p-3.5 px-8 flex items-center justify-between z-20 shadow-lg">
         <div className="text-xs text-neutral-700 font-medium">
-          対象品目: {storeInventoryItems.length} 品目中 <strong className="font-bold font-mono">{filledInventoryCount}</strong> 品目入力済
+          対象食材: {filteredItems.length} 件中 <strong className="font-bold font-mono">{filledInventoryCount}</strong> 件入力済
         </div>
         <button
           onClick={saveInventoryCounts}
@@ -331,14 +337,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </button>
       </div>
 
-      {/* 臨時品目の棚卸追加モーダル */}
+      {/* 臨時食材の棚卸追加モーダル */}
       {showNewCountModal && (
         <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-neutral-200">
-            <h3 className="text-sm font-bold text-neutral-900 mb-4">臨時品目の棚卸追加</h3>
+            <h3 className="text-sm font-bold text-neutral-900 mb-4">臨時食材の棚卸追加</h3>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold mb-1">食材・品目名 *</label>
+                <label className="block font-bold mb-1">食材名 *</label>
                 <input
                   type="text"
                   value={newCountForm.item_name}

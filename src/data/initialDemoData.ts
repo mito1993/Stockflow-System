@@ -1,15 +1,28 @@
-import { DatabaseState } from '../types';
+import { DatabaseState, RolePermissions } from '../types';
 
-// 初期ダミーデータ (Googleスプレッドシート未接続・デモモード時に使用)
+// デフォルト機能別権限表 (マトリクス)
+export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
+  dashboard: { developer: 'edit', hq: 'view', owner: 'view', staff: 'view' },
+  ocr:       { developer: 'edit', hq: 'edit', owner: 'edit', staff: 'edit' },
+  matching:  { developer: 'edit', hq: 'edit', owner: 'edit', staff: 'hidden' },
+  inventory: { developer: 'edit', hq: 'edit', owner: 'edit', staff: 'edit' },
+  cost:      { developer: 'edit', hq: 'view', owner: 'view', staff: 'view' },
+  master:    { developer: 'edit', hq: 'edit', owner: 'edit', staff: 'hidden' },
+  system:    { developer: 'edit', hq: 'view', owner: 'hidden', staff: 'hidden' },
+};
+
+// 初期ダミーデータ (KAIFAN TOKYO / 広尾 / 1月決算 & 指定ユーザー)
 export const INITIAL_DATABASE: DatabaseState = {
   M_Store: [
-    { store_id: 'S001', store_name: '渋谷本店', address: '東京都渋谷区道玄坂1-2-3', fiscal_month: 3 },
+    { store_id: 'S001', store_name: 'KAIFAN TOKYO', address: '東京都渋谷区広尾5-2-25 HONGOKUビル 3F', fiscal_month: 1 },
     { store_id: 'S002', store_name: '新宿店', address: '東京都新宿区西新宿2-8-1', fiscal_month: 12 },
   ],
   M_User: [
-    { user_id: 'dev@example.com', password: 'password123', user_name: '開発者 (全権限デベロッパー)', role: 'developer', store_id: 'HQ' },
-    { user_id: 'hq@example.com', password: 'password123', user_name: '本部 統括マネージャー', role: 'hq', store_id: 'HQ' },
-    { user_id: 'owner@example.com', password: 'password123', user_name: '山田 太郎 (オーナー)', role: 'owner', store_id: 'S001' },
+    { user_id: 'dev@example.com', password: 'password123', user_name: '開発者 (システム管理者)', role: 'developer', store_id: 'HQ' },
+    { user_id: 'k.tanaka@kidzfrmnowhere.com', password: 'password123', user_name: '田中 喜芳', role: 'hq', store_id: 'HQ' },
+    { user_id: 'eto@kidzfrmnowhere.com', password: 'password123', user_name: '江藤 夕紀', role: 'hq', store_id: 'HQ' },
+    { user_id: 's.kobayashi0901@gmail.com', password: 'password123', user_name: '小林 秀平', role: 'hq', store_id: 'HQ' },
+    { user_id: 'Oji@kidzfrmnowhere.com', password: 'password123', user_name: '王子 龍義', role: 'owner', store_id: 'S001' },
     { user_id: 'staff@example.com', password: 'password123', user_name: '佐藤 次郎 (現場スタッフ)', role: 'staff', store_id: 'S001' },
   ],
   M_Supplier: [
@@ -28,12 +41,12 @@ export const INITIAL_DATABASE: DatabaseState = {
     { item_id: 7, supplier_id: 2, item_name: '玉ねぎ', category: '野菜類', unit: 'kg', inventory_target: true, store_id: 'S001' },
   ],
   T_Invoice: [
-    { invoice_id: 101, supplier_id: 1, store_id: 'S001', invoice_date: '2026-09-02', status: '確定', file_url: '/dummy/inv101.pdf' },
-    { invoice_id: 102, supplier_id: 2, store_id: 'S001', invoice_date: '2026-09-10', status: '確認待ち', file_url: '/dummy/inv102.pdf' },
+    { invoice_id: 101, supplier_id: 1, store_id: 'S001', purchase_month: '2026-09', status: '確定', file_url: '/dummy/inv101.pdf' },
+    { invoice_id: 102, supplier_id: 2, store_id: 'S001', purchase_month: '2026-09', status: '確認待ち', file_url: '/dummy/inv102.pdf' },
   ],
   T_Invoice_Line: [
-    { line_id: 1, invoice_id: 101, file_url: '/dummy/inv101.pdf', item_id: 1, item_name: '国産 牛ﾊﾞﾗ ｽﾗｲｽ', inventory_target: true, supplier_id: 1, supplier_name: '肉のﾊﾅマサ', quantity: 20, unit_price: 1300, total_price: 26000, is_manual_edited: false, unit: 'kg', converted_item_name: '牛バラ肉', converted_supplier_name: '肉のハナマサ 精肉部', is_new_item: false, is_new_supplier: false, status: '確定', invoice_date: '2026-09-02', store_id: 'S001' },
-    { line_id: 2, invoice_id: 102, file_url: '/dummy/inv102.pdf', item_id: 2, item_name: '群馬県産 キャベツ 1箱', inventory_target: true, supplier_id: 2, supplier_name: '八百八', quantity: 30, unit_price: 190, total_price: 5700, is_manual_edited: false, unit: '玉', converted_item_name: 'キャベツ', converted_supplier_name: '八百八青果 築地支店', is_new_item: false, is_new_supplier: false, status: '確認待ち', invoice_date: '2026-09-10', store_id: 'S001' },
+    { line_id: 1, invoice_id: 101, file_url: '/dummy/inv101.pdf', item_id: 1, item_name: '国産 牛ﾊﾞﾗ ｽﾗｲｽ', inventory_target: true, supplier_id: 1, supplier_name: '肉のﾊﾅマサ', quantity: 20, unit_price: 1300, total_price: 26000, is_manual_edited: false, unit: 'kg', converted_item_name: '牛バラ肉', converted_supplier_name: '肉のハナマサ 精肉部', is_new_item: false, is_new_supplier: false, status: '確定', purchase_month: '2026-09', store_id: 'S001' },
+    { line_id: 2, invoice_id: 102, file_url: '/dummy/inv102.pdf', item_id: 2, item_name: '群馬県産 キャベツ 1箱', inventory_target: true, supplier_id: 2, supplier_name: '八百八', quantity: 30, unit_price: 190, total_price: 5700, is_manual_edited: false, unit: '玉', converted_item_name: 'キャベツ', converted_supplier_name: '八百八青果 築地支店', is_new_item: false, is_new_supplier: false, status: '確認待ち', purchase_month: '2026-09', store_id: 'S001' },
   ],
   T_Inventory_Count: [
     { count_id: 1, store_id: 'S001', target_month: '2026-09', item_id: 1, item_name: '牛バラ肉', actual_quantity: 8, input_datetime: '2026-09-25 15:30:00', input_user_id: 'staff@example.com', is_new_count_flag: false },
