@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MStore, MUser, TMonthlySales, DataMode, RolePermissions, PermissionLevel, TabType } from '../types';
 
 interface SystemViewProps {
@@ -53,10 +53,24 @@ export const SystemView: React.FC<SystemViewProps> = ({
   const [inputClientId, setInputClientId] = useState(clientId);
   const [inputSpreadsheetId, setInputSpreadsheetId] = useState(spreadsheetId);
   const [inputGeminiApiKey, setInputGeminiApiKey] = useState(geminiApiKey);
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  // 外部からのProps更新を同期
+  useEffect(() => {
+    setInputClientId(clientId);
+  }, [clientId]);
+
+  useEffect(() => {
+    setInputSpreadsheetId(spreadsheetId);
+  }, [spreadsheetId]);
+
+  useEffect(() => {
+    setInputGeminiApiKey(geminiApiKey);
+  }, [geminiApiKey]);
 
   // ユーザー招待モーダルステート
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteInviteEmail] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<MUser['role']>('staff');
   const [inviteStoreId, setInviteStoreId] = useState('S001');
@@ -69,13 +83,40 @@ export const SystemView: React.FC<SystemViewProps> = ({
     staff: 1,
   };
 
-  const isConfigEditable = currentUser.role === 'developer' || currentUser.role === 'hq' || currentUser.role === 'owner';
   const isDeveloper = currentUser.role === 'developer';
+  const isHqOrDeveloper = currentUser.role === 'developer' || currentUser.role === 'hq';
+  const isConfigEditable = currentUser.role === 'developer' || currentUser.role === 'hq' || currentUser.role === 'owner';
 
   // 自分より下位の階層のみ招待可能な役割リストを生成
   const allowedInviteRoles = (['hq', 'owner', 'staff'] as MUser['role'][]).filter(r => {
     return roleHierarchy[r] < roleHierarchy[currentUser.role];
   });
+
+  // データモード変更処理 (開発者・本部のみ実行可能)
+  const handleDataModeSwitch = (mode: DataMode) => {
+    if (!isHqOrDeveloper) {
+      showToast('データモードの切替は開発者または本部権限が必要です', 'error');
+      return;
+    }
+    setDataMode(mode);
+  };
+
+  // 設定保存ハンドラー
+  const handleSaveApiConfigs = () => {
+    const trimmedClientId = inputClientId.trim();
+    const trimmedSpreadsheetId = inputSpreadsheetId.trim();
+    const trimmedGeminiKey = inputGeminiApiKey.trim();
+
+    setClientId(trimmedClientId);
+    setSpreadsheetId(trimmedSpreadsheetId);
+    setGeminiApiKey(trimmedGeminiKey);
+
+    localStorage.setItem('GOOGLE_CLIENT_ID', trimmedClientId);
+    localStorage.setItem('SPREADSHEET_ID', trimmedSpreadsheetId);
+    localStorage.setItem('GEMINI_API_KEY', trimmedGeminiKey);
+
+    showToast('API連携・接続設定を保存しました', 'success');
+  };
 
   const handleInviteUser = () => {
     if (!inviteEmail.trim() || !inviteName.trim()) {
@@ -103,9 +144,9 @@ export const SystemView: React.FC<SystemViewProps> = ({
     });
 
     setShowInviteModal(false);
-    setInviteInviteEmail('');
-    setInviteName('');
     showToast(`ユーザー「${inviteName.trim()}」(${inviteEmail.trim()}) を招待・登録しました`, 'success');
+    setInviteEmail('');
+    setInviteName('');
   };
 
   // 権限マトリクス変更 (開発者のみ操作可能)
@@ -147,60 +188,188 @@ export const SystemView: React.FC<SystemViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 0. スプシ本番モード時の認証ステータス */}
-      {dataMode === 'sheets' && (
-        <div className="bg-neutral-900 text-white p-4 rounded-xl border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${accessToken ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'}`}>
-              <i className={`fa-solid ${accessToken ? 'fa-circle-check' : 'fa-triangle-exclamation'}`} />
-            </div>
-            <div>
-              <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-2">
-                <span>Google スプレッドシート連携ステータス:</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${accessToken ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
-                  {accessToken ? '認証済み (接続中)' : '未認証'}
+      {/* 0. データ連携モード切替カード (開発者・本部専用) */}
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-neutral-100 pb-3">
+          <div>
+            <h2 className="font-bold text-neutral-900 text-sm flex items-center gap-2">
+              <i className="fa-solid fa-database text-neutral-700" />
+              <span>データ参照モード設定</span>
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              デモデータ（検証用ローカルデータ）とGoogleスプレッドシート（本番リアルタイム連携）を切り替えます。
+            </p>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 border self-start sm:self-auto">
+            {isHqOrDeveloper ? '切替権限: 開発者・本部 (変更可能)' : '切替権限: 閲覧のみ'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* デモデータモード選択ボタン */}
+          <div
+            onClick={() => isHqOrDeveloper && handleDataModeSwitch('demo')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+              dataMode === 'demo'
+                ? 'border-neutral-950 bg-neutral-50 ring-2 ring-neutral-950 shadow-sm'
+                : 'border-neutral-200 hover:border-neutral-300 bg-white'
+            } ${!isHqOrDeveloper ? 'cursor-not-allowed opacity-75' : ''}`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-box text-sm text-neutral-700" />
+                <span className="font-bold text-xs text-neutral-900">📦 デモデータモード</span>
+              </div>
+              {dataMode === 'demo' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-neutral-900 text-white">
+                  現在有効
                 </span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              内蔵されたダミーデータを使用します。Google認証が不要で、動作確認やUI検証に最適です。
+            </p>
+          </div>
+
+          {/* スプレッドシート連携モード選択ボタン */}
+          <div
+            onClick={() => isHqOrDeveloper && handleDataModeSwitch('sheets')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+              dataMode === 'sheets'
+                ? 'border-neutral-950 bg-neutral-50 ring-2 ring-neutral-950 shadow-sm'
+                : 'border-neutral-200 hover:border-neutral-300 bg-white'
+            } ${!isHqOrDeveloper ? 'cursor-not-allowed opacity-75' : ''}`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-file-excel text-sm text-emerald-600" />
+                <span className="font-bold text-xs text-neutral-900">📊 スプレッドシート連携モード</span>
+              </div>
+              {dataMode === 'sheets' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-600 text-white">
+                  現在有効
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              指定したGoogleスプレッドシートの全9シートと直接読み書き同期します。（Googleアカウント認証が必要）
+            </p>
+          </div>
+        </div>
+
+        {/* スプシモード有効時の接続・認証ステータス */}
+        {dataMode === 'sheets' && (
+          <div className="mt-4 pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-neutral-50 p-3.5 rounded-lg border">
+            <div className="flex items-center gap-2.5">
+              <span className={`w-2.5 h-2.5 rounded-full ${accessToken ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <div className="text-xs">
+                <span className="text-neutral-500">Google認証状態: </span>
+                <strong className={accessToken ? 'text-emerald-700' : 'text-amber-700'}>
+                  {accessToken ? '接続完了 (スプシ同期有効)' : '未認証 (ログインが必要です)'}
+                </strong>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              {accessToken && reloadSheets && (
+                <button
+                  onClick={reloadSheets}
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 rounded-md text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <i className="fa-solid fa-rotate text-[10px]" />
+                  <span>最新データを再読み込み</span>
+                </button>
+              )}
+              {googleLogin && (
+                <button
+                  onClick={() => googleLogin()}
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-md text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <i className="fa-brands fa-google text-[11px]" />
+                  <span>{accessToken ? 'アカウント再認証' : 'Googleでログイン'}</span>
+                </button>
+              )}
+            </div>
           </div>
-          {googleLogin && (
-            <button
-              onClick={() => googleLogin()}
-              className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 font-bold rounded-lg text-xs transition-all flex items-center gap-1.5 shadow"
-            >
-              <i className="fa-brands fa-google text-neutral-700" />
-              <span>{accessToken ? 'アカウント切替' : 'Googleでログイン'}</span>
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 1. API連携・各種キー設定カード */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
-        <h2 className="font-bold text-neutral-900 text-sm mb-3 flex items-center gap-2">
-          <i className="fa-solid fa-key text-neutral-700" />
-          <span>API連携・スプレッドシート接続設定</span>
-        </h2>
-        <div className="space-y-3 text-xs">
+        <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-3">
           <div>
-            <label className="block font-bold text-neutral-800 mb-1">Google スプレッドシート ID</label>
+            <h2 className="font-bold text-neutral-900 text-sm flex items-center gap-2">
+              <i className="fa-solid fa-key text-neutral-700" />
+              <span>API連携・スプレッドシート接続設定</span>
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Google Cloud Consoleで取得したOAuthクライアントID、APIキー、対象スプレッドシートIDを設定します。
+            </p>
+          </div>
+          {isConfigEditable && (
+            <button
+              onClick={handleSaveApiConfigs}
+              className="px-4 py-2 bg-neutral-900 hover:bg-black text-white text-xs font-semibold rounded-md shadow-sm flex items-center gap-1.5 transition-colors"
+            >
+              <i className="fa-solid fa-floppy-disk text-[11px]" />
+              <span>設定を保存</span>
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-neutral-800 mb-1">
+              Google OAuth 2.0 クライアント ID
+            </label>
+            <input
+              type="text"
+              value={inputClientId}
+              onChange={e => setInputClientId(e.target.value)}
+              disabled={!isConfigEditable}
+              placeholder="例: 36049065092-xxxxxxxxxxxx.apps.googleusercontent.com"
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg font-mono text-xs outline-none"
+            />
+            <p className="text-[10px] text-neutral-400 mt-1">※ クライアントIDを変更して保存した場合、反映のためにブラウザのリロードを行ってください。</p>
+          </div>
+
+          <div>
+            <label className="block font-bold text-neutral-800 mb-1">
+              Google スプレッドシート ID
+            </label>
             <input
               type="text"
               value={inputSpreadsheetId}
               onChange={e => setInputSpreadsheetId(e.target.value)}
               disabled={!isConfigEditable}
-              className="w-full px-3 py-2 bg-neutral-50 border rounded-lg font-mono text-xs"
+              placeholder="例: 1wlmCcfzXir-ZbEMwbX96Db2rRwxt7SStWqOVKImFMTM"
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg font-mono text-xs outline-none"
             />
+            <p className="text-[10px] text-neutral-400 mt-1">※ スプレッドシートのURL（`/d/` と `/edit` の間）にある英数字文字列です。</p>
           </div>
+
           <div>
-            <label className="block font-bold text-neutral-800 mb-1">Gemini API Key (OCR解析用)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-bold text-neutral-800">
+                Gemini API Key (OCR解析用)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center gap-1"
+              >
+                <i className={`fa-solid ${showApiKey ? 'fa-eye-slash' : 'fa-eye'} text-[10px]`} />
+                <span>{showApiKey ? '非表示' : '表示'}</span>
+              </button>
+            </div>
             <input
-              type="password"
+              type={showApiKey ? 'text' : 'password'}
               value={inputGeminiApiKey}
               onChange={e => setInputGeminiApiKey(e.target.value)}
               disabled={!isConfigEditable}
-              className="w-full px-3 py-2 bg-neutral-50 border rounded-lg font-mono text-xs"
+              placeholder="例: AIzaSy..."
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg font-mono text-xs outline-none"
             />
+            <p className="text-[10px] text-neutral-400 mt-1">※ 伝票画像/PDFのOCR解析に適用されます。</p>
           </div>
         </div>
       </div>
@@ -259,12 +428,12 @@ export const SystemView: React.FC<SystemViewProps> = ({
         </div>
       </div>
 
-      {/* 3. 【要件適用】最下部: 機能別アクセス権限マトリクス表 */}
+      {/* 3. 機能別アクセス権限マトリクス表 */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h2 className="font-bold text-neutral-900 text-sm flex items-center gap-2">
-              <i className="fa-solid fa-[#shield-halved] fa-shield-halved text-neutral-700" />
+              <i className="fa-solid fa-shield-halved text-neutral-700" />
               <span>機能別アクセス権限マトリクス (システム開発者限定編集)</span>
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
@@ -299,7 +468,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
                           <select
                             value={currentLevel}
                             onChange={(e) => handlePermissionChange(tabKey, roleKey, e.target.value as PermissionLevel)}
-                            className="px-2 py-1 bg-white border border-neutral-300 rounded font-bold text-xs outline-none"
+                            className="px-2 py-1 bg-white border border-neutral-300 rounded font-bold text-xs outline-none cursor-pointer"
                           >
                             <option value="edit">編集</option>
                             <option value="view">閲覧</option>
@@ -339,7 +508,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
                 <input
                   type="email"
                   value={inviteEmail}
-                  onChange={e => setInviteInviteEmail(e.target.value)}
+                  onChange={e => setInviteEmail(e.target.value)}
                   placeholder="user@example.com"
                   className="w-full px-3 py-2 bg-neutral-50 border rounded-lg"
                 />

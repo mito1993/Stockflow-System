@@ -27,7 +27,7 @@ export const OcrView: React.FC<OcrViewProps> = ({
   setActiveTab,
   saveSheetToGoogle,
 }) => {
-  // OCRアップロード時の「仕入月」必須選択ステート（初期値は現在選択中の月）
+  // OCRアップロード時の「仕入月」必須選択ステート
   const [targetPurchaseMonth, setTargetPurchaseMonth] = useState<string>(selectedMonth);
 
   const simulateOcrUpload = () => {
@@ -42,7 +42,8 @@ export const OcrView: React.FC<OcrViewProps> = ({
       const newLine: TInvoiceLine = {
         line_id: Date.now(),
         invoice_id: Date.now() + 1,
-        file_url: '/dummy/uploaded.pdf',
+        // ここをXサーバー環境・開発環境両対応のパスに修正
+        file_url: `${import.meta.env.BASE_URL}dummy/uploaded.pdf`,
         item_id: 1,
         item_name: 'ｷﾞｭｳ ﾊﾞﾗｽﾗｲｽ 15kg (特売)',
         inventory_target: true,

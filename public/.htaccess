@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Xサーバー上のサブディレクトリパスを指定
+  RewriteBase /genzone/inventory-management/
+  
+  RewriteRule ^index\.html$ - [L]
+  
+  # リクエストされたURLが実在するファイル・ディレクトリでない場合
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # すべての処理をReactのindex.htmlに流す
+  RewriteRule . /genzone/inventory-management/index.html [L]
+</IfModule>

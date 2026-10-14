@@ -48,6 +48,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
 
   // デモ用クイックログイン選択
   const handleQuickDemoLogin = (targetUserId: string) => {
+    // 本番環境（Xサーバー等にビルドした状態）では動作させない安全対策
+    if (!import.meta.env.DEV) return;
+
     const demoUser = users.find(u => u.user_id === targetUserId);
     if (demoUser) {
       setEmail(demoUser.user_id);
@@ -78,7 +81,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="k.tanaka@kidzfrmnowhere.com"
+                placeholder="user@example.com"
                 className="w-full pl-9 pr-3 py-2.5 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg outline-none font-medium text-neutral-900 transition-colors"
               />
             </div>
@@ -117,42 +120,44 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
           </button>
         </form>
 
-        {/* 開発・デモ用クイックログインアシスト */}
-        <div className="pt-4 border-t border-neutral-200">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
-            テスト用クイック入力プリセット
+        {/* 開発・デモ用クイックログインアシスト (開発サーバーでのみ表示) */}
+        {import.meta.env.DEV && (
+          <div className="pt-4 border-t border-neutral-200">
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
+              テスト用クイック入力プリセット (開発環境限定)
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin('dev@example.com')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+              >
+                🔑 開発者 (全権)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin('k.tanaka@kidzfrmnowhere.com')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+              >
+                🏢 田中 喜芳 (本部)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin('Oji@kidzfrmnowhere.com')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+              >
+                🏪 王子 龍義 (店舗責任者)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin('staff@example.com')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+              >
+                👤 佐藤 次郎 (スタッフ)
+              </button>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin('dev@example.com')}
-              className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
-            >
-              🔑 開発者 (全権)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin('k.tanaka@kidzfrmnowhere.com')}
-              className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
-            >
-              🏢 田中 喜芳 (本部)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin('Oji@kidzfrmnowhere.com')}
-              className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
-            >
-              🏪 王子 龍義 (店舗責任者)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin('staff@example.com')}
-              className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
-            >
-              👤 佐藤 次郎 (スタッフ)
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* パスワード再設定モーダル */}
@@ -175,7 +180,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
                   required
                   value={resetEmail}
                   onChange={e => setResetEmail(e.target.value)}
-                  placeholder="user@kidzfrmnowhere.com"
+                  placeholder="user@example.com"
                   className="w-full px-3 py-2 bg-neutral-50 border rounded-lg outline-none focus:border-neutral-900"
                 />
               </div>

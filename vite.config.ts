@@ -53,7 +53,7 @@ function aistudioMediaPlugin(): Plugin {
               return;
             }
           } catch {
-            // Fall through if URI decoding or file access fails
+            // Fall through
           }
         }
         next();
@@ -62,9 +62,9 @@ function aistudioMediaPlugin(): Plugin {
   };
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   return {
-    base: '/genzone/inventory-management/',
+    base: command === 'build' ? '/genzone/inventory-management/' : '/',
     plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
     resolve: {
       alias: {
@@ -72,6 +72,9 @@ export default defineConfig(() => {
       },
     },
     server: {
+      host: '0.0.0.0',
+      port: 3000,
+      allowedHosts: true,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
