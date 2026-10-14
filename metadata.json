@@ -1,6 +1,8 @@
 {
-  "name": "飲食店向け在庫管理システム MVP v3.0",
-  "description": "要件定義書v4.0に基づく飲食店向け在庫管理システム。複数店舗・権限制御、OCR仕入伝票登録、独立した棚卸・OCRマッチング機能、月次実地棚卸入力、最終仕入原価法による原価計算・仕入集計、月次推移表を備えたプロトタイプ。",
+  "name": "GENZONE在庫管理システム",
+  "description": "要件定義書に準拠した飲食店向けマルチテナント在庫管理システム。複数店舗管理・4段階権限階層制御（開発者/本部/店舗責任者/現場スタッフ）、Gemini AIによる仕入伝票OCR解析および品目・取引先名寄せ、現場先行棚卸と伝票の突合・ID統合マッチング機能、現場タブレット対応月次実地棚卸入力、最終仕入原価法に基づくリアルタイム原価計算・仕入集計・月次原価推移ダッシュボード、Googleスプレッドシート全9シートとの双方向API同期を統合したWebアプリケーション。",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

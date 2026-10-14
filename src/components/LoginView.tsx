@@ -66,7 +66,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
           <div className="w-12 h-12 bg-neutral-950 rounded-xl border border-neutral-800 text-white flex items-center justify-center mx-auto text-xl shadow-md">
             <i className="fa-solid fa-boxes-stacked" />
           </div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">StockFlow 在庫管理</h1>
+          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">GENZONE在庫管理システム</h1>
           <p className="text-xs text-neutral-500">アカウント情報を入力してログインしてください</p>
         </div>
 

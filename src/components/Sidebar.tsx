@@ -50,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <i className="fa-solid fa-boxes-stacked" />
         </div>
         <div>
-          <div className="font-bold text-white tracking-tight text-sm leading-tight">StockFlow</div>
+          <div className="font-bold text-white tracking-tight text-sm leading-tight">GENZONE</div>
           <div className="text-[10px] font-medium text-neutral-400 tracking-wider">在庫管理システム</div>
         </div>
       </div>

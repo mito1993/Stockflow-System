@@ -1,3 +1,8 @@
+# 検索エンジンのインデックス・キャッシュをHTTPヘッダーレベルで完全拒否
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   # Xサーバー上のサブディレクトリパスを指定
