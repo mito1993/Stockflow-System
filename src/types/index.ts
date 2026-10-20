@@ -1,5 +1,5 @@
 // ==========================================
-// 1. データテーブル型定義 (9シート構成)
+// 1. データテーブル型定義 (9シート構成 + ロック管理)
 // ==========================================
 
 // M_Store (店舗マスタ)
@@ -84,6 +84,15 @@ export interface TInventoryCount {
   is_new_count_flag: boolean;// 現場先行新規棚卸フラグ
 }
 
+// T_Inventory_Lock (棚卸月次ロック状態)
+export interface TInventoryLock {
+  store_id: string;          // 店舗ID
+  target_month: string;      // 対象年月 (例: 2026-09)
+  is_locked: boolean;        // ロック中フラグ
+  locked_at: string;         // ロック日時
+  locked_by: string;         // ロック実行ユーザーID
+}
+
 // T_Monthly_Sales (月次売上マスタ)
 export interface TMonthlySales {
   sales_id: number;      // 売上記録ID / 主キー
@@ -122,6 +131,7 @@ export interface DatabaseState {
   T_Inventory_Count: TInventoryCount[];
   T_Monthly_Sales: TMonthlySales[];
   T_Cost_Calculation: TCostCalculation[];
+  T_Inventory_Lock?: TInventoryLock[];
 }
 
 // ==========================================

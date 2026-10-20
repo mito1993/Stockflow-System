@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
-import { DatabaseState, TabType, ToastMessage, MUser, MStore, TCostCalculation, DataMode, RolePermissions } from './types';
+import { DatabaseState, TabType, ToastMessage, MUser, MStore, TCostCalculation, DataMode, RolePermissions, TInventoryLock } from './types';
 import { fetchAllDatabaseSheets, updateSheetData } from './utils/googleSheets';
 import { INITIAL_DATABASE, DEFAULT_ROLE_PERMISSIONS } from './data/initialDemoData';
 import { SHEET_HEADERS } from './constants/headers';
@@ -16,7 +16,6 @@ import { SystemView } from './components/SystemView';
 import { LoginView } from './components/LoginView';
 
 export default function App() {
-  // システム設定状態
   const [clientId, setClientId] = useState(localStorage.getItem('GOOGLE_CLIENT_ID') || '');
   const [spreadsheetId, setSpreadsheetId] = useState(localStorage.getItem('SPREADSHEET_ID') || '1wlmCcfzXir-ZbEMwbX96Db2rRwxt7SStWqOVKImFMTM');
   const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY as string) || '');
@@ -25,11 +24,27 @@ export default function App() {
   const [dataMode, setDataMode] = useState<DataMode>((localStorage.getItem('DATA_MODE') as DataMode) || 'demo');
   const [db, setDb] = useState<DatabaseState>(INITIAL_DATABASE);
 
-  // 【要件適用】ログイン状態管理（初期表示は必ず未ログイン状態＝ログイン画面）
+  // 月次棚卸ロック管理ステート（初期値: 過去月を例示ロック）
+  const [inventoryLocks, setInventoryLocks] = useState<TInventoryLock[]>(() => {
+    const saved = localStorage.getItem('INVENTORY_LOCKS');
+    return saved
+      ? JSON.parse(saved)
+      : [
+          { store_id: 'S001', target_month: '2026-06', is_locked: true, locked_at: '2026-07-01 00:00:00', locked_by: 'dev@example.com' },
+          { store_id: 'S001', target_month: '2026-07', is_locked: true, locked_at: '2026-08-01 00:00:00', locked_by: 'dev@example.com' },
+          { store_id: 'S001', target_month: '2026-08', is_locked: true, locked_at: '2026-09-01 00:00:00', locked_by: 'dev@example.com' },
+          { store_id: 'S001', target_month: '2026-09', is_locked: false, locked_at: '', locked_by: '' },
+        ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('INVENTORY_LOCKS', JSON.stringify(inventoryLocks));
+  }, [inventoryLocks]);
+
+  // ログイン状態管理
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [loggedInUserId, setLoggedInUserId] = useState<string>('');
 
-  // 権限マトリクス設定
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(() => {
     const saved = localStorage.getItem('ROLE_PERMISSIONS');
     return saved ? JSON.parse(saved) : DEFAULT_ROLE_PERMISSIONS;
@@ -43,7 +58,6 @@ export default function App() {
 
   const availableMonths = ['2026-06', '2026-07', '2026-08', '2026-09'];
 
-  // ログイン中ユーザー
   const currentUser: MUser = useMemo(() => {
     return db.M_User.find(u => u.user_id === loggedInUserId) || db.M_User[0];
   }, [db.M_User, loggedInUserId]);
@@ -56,12 +70,13 @@ export default function App() {
     ? db.M_Store
     : db.M_Store.filter(s => s.store_id === currentUser.store_id);
 
+  // Google認証フック (スプレッドシート権限 ＋ Gmail送信権限を要求)
   const googleLogin = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send',
     onSuccess: (tokenResponse) => {
       setAccessToken(tokenResponse.access_token);
       localStorage.setItem('GOOGLE_ACCESS_TOKEN', tokenResponse.access_token);
-      showToast('Google認証に成功しました。スプレッドシートのデータを読み込みます...', 'info');
+      showToast('Google認証に成功しました。スプレッドシートとGmail送信が有効です', 'info');
       loadAllSheets(tokenResponse.access_token);
     },
     onError: () => showToast('Googleログインに失敗しました', 'error')
@@ -129,21 +144,18 @@ export default function App() {
     }
   };
 
-  // ログイン成功ハンドラー
   const handleLoginSuccess = (user: MUser) => {
     setLoggedInUserId(user.user_id);
     setIsLoggedIn(true);
     setSelectedStoreId(user.store_id === 'HQ' ? 'S001' : user.store_id);
   };
 
-  // ログアウト処理
   const handleLogout = () => {
     setIsLoggedIn(false);
     setLoggedInUserId('');
     showToast('ログアウトしました', 'info');
   };
 
-  // 【要件適用】デモデータ選択時かつ開発者・本部権限のユーザーのみUI切替を許可
   const toggleDemoRole = () => {
     if (dataMode === 'sheets') {
       showToast('スプレッドシート連携モード中は表示権限の切り替えができません', 'warning');
@@ -233,7 +245,6 @@ export default function App() {
   const confirmedLines = currentStoreInvoiceLines.filter(l => l.status === '確定');
   const currentMonthPurchaseTotal = confirmedLines.reduce((sum, l) => sum + (Number(l.quantity) * Number(l.unit_price)), 0);
 
-  // 【要件適用】未ログイン時はログイン画面のみをレンダリング
   if (!isLoggedIn) {
     return (
       <>
@@ -352,7 +363,13 @@ export default function App() {
               setInventoryDraft={setInventoryDraft}
               selectedStoreId={selectedStoreId}
               selectedMonth={selectedMonth}
+              setSelectedMonth={setSelectedMonth}
+              availableMonths={availableMonths}
               currentUserId={currentUser.user_id}
+              currentUser={currentUser}
+              currentStore={currentStore}
+              inventoryLocks={inventoryLocks}
+              setInventoryLocks={setInventoryLocks}
               setT_Inventory_Count={(val) => setDb(prev => ({ ...prev, T_Inventory_Count: typeof val === 'function' ? val(prev.T_Inventory_Count) : val }))}
               setM_Item={(val) => setDb(prev => ({ ...prev, M_Item: typeof val === 'function' ? val(prev.M_Item) : val }))}
               showToast={showToast}

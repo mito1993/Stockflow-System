@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MStore, MUser, TMonthlySales, DataMode, RolePermissions, PermissionLevel, TabType } from '../types';
+import { sendEmailViaGmailApi } from '../utils/mail';
 
 interface SystemViewProps {
   M_Store: MStore[];
@@ -55,7 +56,6 @@ export const SystemView: React.FC<SystemViewProps> = ({
   const [inputGeminiApiKey, setInputGeminiApiKey] = useState(geminiApiKey);
   const [showApiKey, setShowApiKey] = useState(false);
 
-  // 外部からのProps更新を同期
   useEffect(() => {
     setInputClientId(clientId);
   }, [clientId]);
@@ -68,14 +68,14 @@ export const SystemView: React.FC<SystemViewProps> = ({
     setInputGeminiApiKey(geminiApiKey);
   }, [geminiApiKey]);
 
-  // ユーザー招待モーダルステート
+  // ユーザー招待ステート
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<MUser['role']>('staff');
   const [inviteStoreId, setInviteStoreId] = useState('S001');
+  const [isInviting, setIsInviting] = useState(false);
 
-  // 階層比較用の重み (developer:4 > hq:3 > owner:2 > staff:1)
   const roleHierarchy: Record<MUser['role'], number> = {
     developer: 4,
     hq: 3,
@@ -87,12 +87,10 @@ export const SystemView: React.FC<SystemViewProps> = ({
   const isHqOrDeveloper = currentUser.role === 'developer' || currentUser.role === 'hq';
   const isConfigEditable = currentUser.role === 'developer' || currentUser.role === 'hq' || currentUser.role === 'owner';
 
-  // 自分より下位の階層のみ招待可能な役割リストを生成
   const allowedInviteRoles = (['hq', 'owner', 'staff'] as MUser['role'][]).filter(r => {
     return roleHierarchy[r] < roleHierarchy[currentUser.role];
   });
 
-  // データモード変更処理 (開発者・本部のみ実行可能)
   const handleDataModeSwitch = (mode: DataMode) => {
     if (!isHqOrDeveloper) {
       showToast('データモードの切替は開発者または本部権限が必要です', 'error');
@@ -101,7 +99,6 @@ export const SystemView: React.FC<SystemViewProps> = ({
     setDataMode(mode);
   };
 
-  // 設定保存ハンドラー
   const handleSaveApiConfigs = () => {
     const trimmedClientId = inputClientId.trim();
     const trimmedSpreadsheetId = inputSpreadsheetId.trim();
@@ -118,38 +115,69 @@ export const SystemView: React.FC<SystemViewProps> = ({
     showToast('API連携・接続設定を保存しました', 'success');
   };
 
-  const handleInviteUser = () => {
-    if (!inviteEmail.trim() || !inviteName.trim()) {
+  // 新規ユーザー招待処理（Gmail APIによる招待メール送信付き）
+  const handleInviteUser = async () => {
+    const targetEmail = inviteEmail.trim().toLowerCase();
+    const targetName = inviteName.trim();
+
+    if (!targetEmail || !targetName) {
       showToast('メールアドレスと氏名を入力してください', 'error');
       return;
     }
 
-    if (M_User.some(u => u.user_id === inviteEmail.trim())) {
+    if (M_User.some(u => u.user_id.toLowerCase() === targetEmail)) {
       showToast('指定のメールアドレスは既に登録されています', 'error');
       return;
     }
 
+    setIsInviting(true);
+    const initialPassword = 'pass' + Math.floor(100000 + Math.random() * 900000);
+
     const newUser: MUser = {
-      user_id: inviteEmail.trim(),
-      password: 'password123',
-      user_name: inviteName.trim(),
+      user_id: targetEmail,
+      password: initialPassword,
+      user_name: targetName,
       role: inviteRole,
       store_id: inviteStoreId,
     };
 
+    // Googleスプレッドシート & ステートの更新
     setM_User(prev => {
       const updated = [...prev, newUser];
       if (saveSheetToGoogle) saveSheetToGoogle('M_User', undefined, updated);
       return updated;
     });
 
+    // Gmail APIが利用可能な場合（Googleログイン済）は招待メールを直接送信
+    if (accessToken) {
+      try {
+        const storeObj = M_Store.find(s => s.store_id === inviteStoreId);
+        const storeName = storeObj ? storeObj.store_name : inviteStoreId;
+        const subject = '【GENZONE在庫管理】システムへのご招待';
+        const body = `${targetName} 様\n\n` +
+          `GENZONE在庫管理システムへのアカウントが作成されました。\n\n` +
+          `【ログイン情報】\n` +
+          `・URL: ${window.location.origin}${window.location.pathname}\n` +
+          `・メールアドレス: ${targetEmail}\n` +
+          `・初期パスワード: ${initialPassword}\n` +
+          `・所属店舗: ${storeName}\n\n` +
+          `※初回ログイン後、必要に応じてパスワードを変更してください。`;
+
+        await sendEmailViaGmailApi(accessToken, targetEmail, subject, body);
+        showToast(`ユーザー「${targetName}」を登録し、招待メールを送信しました`, 'success');
+      } catch (e: any) {
+        showToast(`ユーザー登録完了。メール送信はスキップされました: ${e.message}`, 'warning');
+      }
+    } else {
+      showToast(`ユーザー「${targetName}」を登録しました（初期パスワード: ${initialPassword}）`, 'info');
+    }
+
+    setIsInviting(false);
     setShowInviteModal(false);
-    showToast(`ユーザー「${inviteName.trim()}」(${inviteEmail.trim()}) を招待・登録しました`, 'success');
     setInviteEmail('');
     setInviteName('');
   };
 
-  // 権限マトリクス変更 (開発者のみ操作可能)
   const handlePermissionChange = (tab: TabType, role: MUser['role'], level: PermissionLevel) => {
     if (!isDeveloper) {
       showToast('権限マトリクスの変更はシステム開発者のみ可能です', 'error');
@@ -188,7 +216,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 0. データ連携モード切替カード (開発者・本部専用) */}
+      {/* 0. データ連携モード切替カード */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-neutral-100 pb-3">
           <div>
@@ -206,7 +234,6 @@ export const SystemView: React.FC<SystemViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* デモデータモード選択ボタン */}
           <div
             onClick={() => isHqOrDeveloper && handleDataModeSwitch('demo')}
             className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
@@ -231,7 +258,6 @@ export const SystemView: React.FC<SystemViewProps> = ({
             </p>
           </div>
 
-          {/* スプレッドシート連携モード選択ボタン */}
           <div
             onClick={() => isHqOrDeveloper && handleDataModeSwitch('sheets')}
             className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
@@ -252,12 +278,11 @@ export const SystemView: React.FC<SystemViewProps> = ({
               )}
             </div>
             <p className="text-[11px] text-neutral-500 leading-relaxed">
-              指定したGoogleスプレッドシートの全9シートと直接読み書き同期します。（Googleアカウント認証が必要）
+              指定したGoogleスプレッドシートと直接読み書き同期します。（Googleアカウント認証が必要）
             </p>
           </div>
         </div>
 
-        {/* スプシモード有効時の接続・認証ステータス */}
         {dataMode === 'sheets' && (
           <div className="mt-4 pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-neutral-50 p-3.5 rounded-lg border">
             <div className="flex items-center gap-2.5">
@@ -265,7 +290,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
               <div className="text-xs">
                 <span className="text-neutral-500">Google認証状態: </span>
                 <strong className={accessToken ? 'text-emerald-700' : 'text-amber-700'}>
-                  {accessToken ? '接続完了 (スプシ同期有効)' : '未認証 (ログインが必要です)'}
+                  {accessToken ? '接続完了 (スプシ同期・Gmail送信有効)' : '未認証 (ログインが必要です)'}
                 </strong>
               </div>
             </div>
@@ -273,7 +298,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
               {accessToken && reloadSheets && (
                 <button
                   onClick={reloadSheets}
-                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 rounded-md text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 rounded-md text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <i className="fa-solid fa-rotate text-[10px]" />
                   <span>最新データを再読み込み</span>
@@ -282,7 +307,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
               {googleLogin && (
                 <button
                   onClick={() => googleLogin()}
-                  className="px-3 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-md text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-md text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <i className="fa-brands fa-google text-[11px]" />
                   <span>{accessToken ? 'アカウント再認証' : 'Googleでログイン'}</span>
@@ -293,7 +318,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
         )}
       </div>
 
-      {/* 1. API連携・各種キー設定カード */}
+      {/* 1. API連携設定カード */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-3">
           <div>
@@ -308,7 +333,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
           {isConfigEditable && (
             <button
               onClick={handleSaveApiConfigs}
-              className="px-4 py-2 bg-neutral-900 hover:bg-black text-white text-xs font-semibold rounded-md shadow-sm flex items-center gap-1.5 transition-colors"
+              className="px-4 py-2 bg-neutral-900 hover:bg-black text-white text-xs font-semibold rounded-md shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <i className="fa-solid fa-floppy-disk text-[11px]" />
               <span>設定を保存</span>
@@ -329,7 +354,6 @@ export const SystemView: React.FC<SystemViewProps> = ({
               placeholder="例: 36049065092-xxxxxxxxxxxx.apps.googleusercontent.com"
               className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg font-mono text-xs outline-none"
             />
-            <p className="text-[10px] text-neutral-400 mt-1">※ クライアントIDを変更して保存した場合、反映のためにブラウザのリロードを行ってください。</p>
           </div>
 
           <div>
@@ -344,7 +368,6 @@ export const SystemView: React.FC<SystemViewProps> = ({
               placeholder="例: 1wlmCcfzXir-ZbEMwbX96Db2rRwxt7SStWqOVKImFMTM"
               className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg font-mono text-xs outline-none"
             />
-            <p className="text-[10px] text-neutral-400 mt-1">※ スプレッドシートのURL（`/d/` と `/edit` の間）にある英数字文字列です。</p>
           </div>
 
           <div>
@@ -355,7 +378,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
-                className="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center gap-1"
+                className="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center gap-1 cursor-pointer"
               >
                 <i className={`fa-solid ${showApiKey ? 'fa-eye-slash' : 'fa-eye'} text-[10px]`} />
                 <span>{showApiKey ? '非表示' : '表示'}</span>
@@ -369,12 +392,11 @@ export const SystemView: React.FC<SystemViewProps> = ({
               placeholder="例: AIzaSy..."
               className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg font-mono text-xs outline-none"
             />
-            <p className="text-[10px] text-neutral-400 mt-1">※ 伝票画像/PDFのOCR解析に適用されます。</p>
           </div>
         </div>
       </div>
 
-      {/* 2. ユーザー招待・権限管理 (M_User) */}
+      {/* 2. ユーザー管理 & 招待 */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-neutral-200 bg-neutral-50/60 flex items-center justify-between">
           <div>
@@ -383,13 +405,13 @@ export const SystemView: React.FC<SystemViewProps> = ({
               <span>ユーザー管理 & 招待 (M_User)</span>
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              自分より下位の権限階層のユーザーをメールアドレスで招待・追加できます。
+              下位の権限階層のユーザーを招待し、初期パスワード記載のメールを自動送信できます。
             </p>
           </div>
           {allowedInviteRoles.length > 0 && (
             <button
               onClick={() => setShowInviteModal(true)}
-              className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white text-xs font-semibold rounded-md shadow-sm flex items-center gap-1.5"
+              className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white text-xs font-semibold rounded-md shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
               <i className="fa-solid fa-user-plus text-[10px]" />
               <span>新規ユーザーを招待</span>
@@ -413,11 +435,22 @@ export const SystemView: React.FC<SystemViewProps> = ({
                   <td className="p-3 font-mono font-medium text-neutral-800">{user.user_id}</td>
                   <td className="p-3 font-bold text-neutral-900">{user.user_name}</td>
                   <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded border text-[10px] font-bold ${
-                      user.role === 'developer' ? 'bg-neutral-900 text-white' :
-                      user.role === 'hq' ? 'bg-neutral-100 text-neutral-800' : 'bg-neutral-50 text-neutral-600'
-                    }`}>
-                      {user.role === 'developer' ? '開発者' : user.role === 'hq' ? '本部' : user.role === 'owner' ? '店舗責任者' : 'スタッフ'}
+                    <span
+                      className={`px-2 py-0.5 rounded border text-[10px] font-bold ${
+                        user.role === 'developer'
+                          ? 'bg-neutral-900 text-white'
+                          : user.role === 'hq'
+                          ? 'bg-neutral-100 text-neutral-800'
+                          : 'bg-neutral-50 text-neutral-600'
+                      }`}
+                    >
+                      {user.role === 'developer'
+                        ? '開発者'
+                        : user.role === 'hq'
+                        ? '本部'
+                        : user.role === 'owner'
+                        ? '店舗責任者'
+                        : 'スタッフ'}
                     </span>
                   </td>
                   <td className="p-3 font-mono text-neutral-600">{getStoreName(user.store_id)}</td>
@@ -428,7 +461,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
         </div>
       </div>
 
-      {/* 3. 機能別アクセス権限マトリクス表 */}
+      {/* 3. 機能別アクセス権限マトリクス */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -437,7 +470,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
               <span>機能別アクセス権限マトリクス (システム開発者限定編集)</span>
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              各ロールにおける「編集」「閲覧」「非表示」の権限を制御します。開発者権限でのみリアルタイム変更が可能です。
+              各ロールにおける「編集」「閲覧」「非表示」の権限を制御します。
             </p>
           </div>
           <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-neutral-100 text-neutral-700 border">
@@ -467,7 +500,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
                         {isDeveloper ? (
                           <select
                             value={currentLevel}
-                            onChange={(e) => handlePermissionChange(tabKey, roleKey, e.target.value as PermissionLevel)}
+                            onChange={e => handlePermissionChange(tabKey, roleKey, e.target.value as PermissionLevel)}
                             className="px-2 py-1 bg-white border border-neutral-300 rounded font-bold text-xs outline-none cursor-pointer"
                           >
                             <option value="edit">編集</option>
@@ -475,11 +508,15 @@ export const SystemView: React.FC<SystemViewProps> = ({
                             <option value="hidden">非表示</option>
                           </select>
                         ) : (
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            currentLevel === 'edit' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                            currentLevel === 'view' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                            'bg-neutral-100 text-neutral-400'
-                          }`}>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              currentLevel === 'edit'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : currentLevel === 'view'
+                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                : 'bg-neutral-100 text-neutral-400'
+                            }`}
+                          >
                             {currentLevel === 'edit' ? '編集' : currentLevel === 'view' ? '閲覧' : '非表示'}
                           </span>
                         )}
@@ -499,7 +536,7 @@ export const SystemView: React.FC<SystemViewProps> = ({
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-neutral-200">
             <h3 className="text-sm font-bold text-neutral-900 mb-4 flex items-center gap-2">
               <i className="fa-solid fa-user-plus text-neutral-700" />
-              <span>新規ユーザー招待</span>
+              <span>新規ユーザー招待 & メール通知</span>
             </h3>
 
             <div className="space-y-3 text-xs">
@@ -549,16 +586,34 @@ export const SystemView: React.FC<SystemViewProps> = ({
                     className="w-full px-2.5 py-2 bg-neutral-50 border rounded-lg"
                   >
                     {M_Store.map(s => (
-                      <option key={s.store_id} value={s.store_id}>{s.store_name}</option>
+                      <option key={s.store_id} value={s.store_id}>
+                        {s.store_name}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
+
+              <div className="p-3 bg-neutral-50 rounded-lg border text-neutral-500 text-[11px] leading-relaxed">
+                <i className="fa-solid fa-circle-info mr-1 text-neutral-700" />
+                登録後、自動生成された初期パスワードを記載した招待案内メールが送信されます。
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 mt-6 pt-3 border-t">
-              <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 bg-neutral-100 text-xs font-semibold rounded-lg">キャンセル</button>
-              <button onClick={handleInviteUser} className="px-5 py-2 bg-neutral-900 text-white text-xs font-bold rounded-lg">招待・登録する</button>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-xs font-semibold rounded-lg cursor-pointer"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleInviteUser}
+                disabled={isInviting}
+                className="px-5 py-2 bg-neutral-900 hover:bg-black text-white text-xs font-bold rounded-lg cursor-pointer disabled:opacity-50"
+              >
+                {isInviting ? '招待メール送信中...' : '招待・登録する'}
+              </button>
             </div>
           </div>
         </div>

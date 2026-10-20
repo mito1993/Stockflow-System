@@ -21,7 +21,14 @@ export const INITIAL_DATABASE: DatabaseState = {
     { store_id: 'S002', store_name: '新宿店', address: '東京都新宿区西新宿2-8-1', fiscal_month: 12 },
   ],
   M_User: [
-    { user_id: 'dev@example.com', password: 'password123', user_name: '開発者 (システム管理者)', role: 'developer', store_id: 'HQ' },
+    // 開発者アカウント：Ag20230406 のSHA-256ハッシュ値を格納
+    {
+      user_id: 'm.ito@anyglo.co.jp',
+      password: '1f99752e52d707a9eb354f8ac67aad155584ba82e268534e65ec285c46053785',
+      user_name: '伊藤 (システム開発者)',
+      role: 'developer',
+      store_id: 'HQ',
+    },
     { user_id: 'k.tanaka@kidzfrmnowhere.com', password: 'password123', user_name: '田中 喜芳', role: 'hq', store_id: 'HQ' },
     { user_id: 'eto@kidzfrmnowhere.com', password: 'password123', user_name: '江藤 夕紀', role: 'hq', store_id: 'HQ' },
     { user_id: 's.kobayashi0901@gmail.com', password: 'password123', user_name: '小林 秀平', role: 'hq', store_id: 'HQ' },
@@ -61,5 +68,5 @@ export const INITIAL_DATABASE: DatabaseState = {
     { sales_id: 3, store_id: 'S001', target_month: '2026-08', sales_amount: 2300000 },
     { sales_id: 4, store_id: 'S001', target_month: '2026-09', sales_amount: 2000000 },
   ],
-  T_Cost_Calculation: []
+  T_Cost_Calculation: [],
 };

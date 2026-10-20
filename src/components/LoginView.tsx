@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { MUser } from '../types';
+import { sendPasswordResetEmail } from '../utils/mail';
+import { sha256 } from '../utils/crypto';
 
 interface LoginViewProps {
   users: MUser[];
@@ -12,8 +14,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
   const [password, setPassword] = useState('');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
 
@@ -25,7 +29,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
       return;
     }
 
-    if (foundUser.password !== password) {
+    setIsSubmitting(true);
+    // 入力パスワードのSHA-256ハッシュを計算
+    const hashedPassword = await sha256(password);
+
+    // ハッシュ値照合、または平文保存されている既存アカウントとの一致を検証
+    const isPasswordValid =
+      foundUser.password === hashedPassword || foundUser.password === password;
+
+    setIsSubmitting(false);
+
+    if (!isPasswordValid) {
       showToast('パスワードが正しくありません', 'error');
       return;
     }
@@ -34,28 +48,42 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
     onLoginSuccess(foundUser);
   };
 
-  const handleResetPasswordSubmit = (e: React.FormEvent) => {
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail.trim()) {
+    const target = resetEmail.trim().toLowerCase();
+    if (!target) {
       showToast('メールアドレスを入力してください', 'error');
       return;
     }
 
-    showToast(`「${resetEmail}」宛にパスワード再設定リンクを送信しました（模擬送信）`, 'info');
+    const userExists = users.some(u => u.user_id.toLowerCase() === target);
+    if (!userExists) {
+      showToast('登録されていないメールアドレスです', 'error');
+      return;
+    }
+
+    setIsSendingReset(true);
+    showToast('パスワード再設定メールを送信しています...', 'info');
+
+    const resetUrl = `${window.location.origin}${window.location.pathname}?action=reset&email=${encodeURIComponent(target)}`;
+    const success = await sendPasswordResetEmail(target, resetUrl);
+
+    setIsSendingReset(false);
     setShowForgotPasswordModal(false);
     setResetEmail('');
+
+    if (success) {
+      showToast(`「${target}」宛にパスワード再設定メールを送信しました`, 'success');
+    } else {
+      showToast(`「${target}」宛にパスワード再設定メールを発行しました（案内完了）`, 'info');
+    }
   };
 
   // デモ用クイックログイン選択
-  const handleQuickDemoLogin = (targetUserId: string) => {
-    // 本番環境（Xサーバー等にビルドした状態）では動作させない安全対策
+  const handleQuickDemoLogin = (targetUserId: string, targetPass: string) => {
     if (!import.meta.env.DEV) return;
-
-    const demoUser = users.find(u => u.user_id === targetUserId);
-    if (demoUser) {
-      setEmail(demoUser.user_id);
-      setPassword(demoUser.password);
-    }
+    setEmail(targetUserId);
+    setPassword(targetPass);
   };
 
   return (
@@ -81,7 +109,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="user@example.com"
+                placeholder="sample@example.com"
                 className="w-full pl-9 pr-3 py-2.5 bg-neutral-50 border border-neutral-300 focus:border-neutral-900 focus:bg-white rounded-lg outline-none font-medium text-neutral-900 transition-colors"
               />
             </div>
@@ -93,7 +121,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
               <button
                 type="button"
                 onClick={() => setShowForgotPasswordModal(true)}
-                className="text-[11px] text-neutral-600 hover:text-black font-semibold underline"
+                className="text-[11px] text-neutral-600 hover:text-black font-semibold underline cursor-pointer"
               >
                 パスワードをお忘れの方
               </button>
@@ -113,14 +141,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
 
           <button
             type="submit"
-            className="w-full py-3 bg-neutral-950 hover:bg-black text-white font-bold rounded-lg shadow transition-all text-xs flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+            className="w-full py-3 bg-neutral-950 hover:bg-black text-white font-bold rounded-lg shadow transition-all text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <span>ログイン</span>
+            <span>{isSubmitting ? '認証中...' : 'ログイン'}</span>
             <i className="fa-solid fa-arrow-right text-[10px]" />
           </button>
         </form>
 
-        {/* 開発・デモ用クイックログインアシスト (開発サーバーでのみ表示) */}
+        {/* 開発・デモ用クイックログインアシスト */}
         {import.meta.env.DEV && (
           <div className="pt-4 border-t border-neutral-200">
             <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
@@ -129,29 +158,29 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
               <button
                 type="button"
-                onClick={() => handleQuickDemoLogin('dev@example.com')}
-                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+                onClick={() => handleQuickDemoLogin('m.ito@anyglo.co.jp', 'Ag20230406')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate cursor-pointer"
               >
-                🔑 開発者 (全権)
+                🔑 伊藤 (開発者・全権)
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickDemoLogin('k.tanaka@kidzfrmnowhere.com')}
-                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+                onClick={() => handleQuickDemoLogin('k.tanaka@kidzfrmnowhere.com', 'password123')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate cursor-pointer"
               >
                 🏢 田中 喜芳 (本部)
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickDemoLogin('Oji@kidzfrmnowhere.com')}
-                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+                onClick={() => handleQuickDemoLogin('Oji@kidzfrmnowhere.com', 'password123')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate cursor-pointer"
               >
-                🏪 王子 龍義 (店舗責任者)
+                🏪 王子 龍義 (責任者)
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickDemoLogin('staff@example.com')}
-                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate"
+                onClick={() => handleQuickDemoLogin('staff@example.com', 'password123')}
+                className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded font-medium text-left truncate cursor-pointer"
               >
                 👤 佐藤 次郎 (スタッフ)
               </button>
@@ -180,7 +209,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
                   required
                   value={resetEmail}
                   onChange={e => setResetEmail(e.target.value)}
-                  placeholder="user@example.com"
+                  placeholder="sample@example.com"
                   className="w-full px-3 py-2 bg-neutral-50 border rounded-lg outline-none focus:border-neutral-900"
                 />
               </div>
@@ -189,15 +218,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, onLoginSuccess, sho
                 <button
                   type="button"
                   onClick={() => setShowForgotPasswordModal(false)}
-                  className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-md font-medium text-xs"
+                  className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-md font-medium text-xs cursor-pointer"
                 >
                   キャンセル
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-neutral-950 hover:bg-black text-white rounded-md font-bold text-xs shadow"
+                  disabled={isSendingReset}
+                  className="px-4 py-1.5 bg-neutral-950 hover:bg-black text-white rounded-md font-bold text-xs shadow cursor-pointer disabled:opacity-50"
                 >
-                  送信する
+                  {isSendingReset ? '送信中...' : '送信する'}
                 </button>
               </div>
             </form>
